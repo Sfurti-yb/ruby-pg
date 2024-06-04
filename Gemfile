@@ -1,7 +1,7 @@
 # -*- ruby -*-
 
-# No pg gem, since "bundle package" fails on bundler-2.7+, if the extension isn't built
-# gemspec
+# Specify your gem's runtime dependencies in yugabyte_ysql.gemspec
+gemspec
 
 source "https://rubygems.org/"
 
@@ -15,6 +15,7 @@ group :test do
   gem "rake-compiler", "~> 1.0"
   gem "rake-compiler-dock", "~> 1.11.0" #, git: "https://github.com/rake-compiler/rake-compiler-dock"
   gem "rspec", "~> 3.5"
+  gem 'concurrent-ruby', require: 'concurrent'
   # "bigdecimal" is a gem on ruby-3.4+ and it's optional for ruby-pg.
   # Specs should succeed without it, but 4 examples are then excluded.
   # With bigdecimal commented out here, corresponding tests are omitted on ruby-3.4+ but are executed on ruby < 3.4.

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
-module PG
+module YugabyteYSQL
 	# Library version
-	VERSION = '1.6.3'
+	PG_VERSION = '1.6.3'
+	VERSION = '0.2'
 end

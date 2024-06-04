@@ -3,7 +3,7 @@
 
 require 'json'
 
-module PG
+module YugabyteYSQL
 	module TextEncoder
 		# This is a encoder class for conversion of Ruby Hash, Array, String, Numeric, nil values to PostgreSQL JSON/JSONB type.
 		#

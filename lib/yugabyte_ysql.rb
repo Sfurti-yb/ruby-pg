@@ -3,7 +3,7 @@
 # frozen_string_literal: true
 
 # The top-level PG namespace.
-module PG
+module YugabyteYSQL
 
   # Is this file part of a fat binary gem with bundled libpq?
   # This path must be enabled by add_dll_directory on Windows.
@@ -139,6 +139,7 @@ module PG
   require 'pg/cancel_connection'
   require 'pg/result'
   require 'pg/tuple'
+  require 'pg/load_balance_service'
   autoload :VERSION, 'pg/version'
 
 

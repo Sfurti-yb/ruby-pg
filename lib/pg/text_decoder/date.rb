@@ -3,7 +3,7 @@
 
 require 'date'
 
-module PG
+module YugabyteYSQL
 	module TextDecoder
 		# This is a decoder class for conversion of PostgreSQL date type to Ruby Date values.
 		#

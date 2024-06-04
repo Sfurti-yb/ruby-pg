@@ -11,14 +11,14 @@ require 'pg'
 ''.encode(Encoding::ISO8859_2)
 ''.encode(Encoding::KOI8_R)
 
-describe PG::Connection do
+describe YugabyteYSQL::Connection do
 
 	it "should give account about memory usage" do
 		expect( ObjectSpace.memsize_of(@conn) ).to be > DATA_OBJ_MEMSIZE
 	end
 
 	it "should deny changes when frozen" do
-		c = PG.connect(@conninfo).freeze
+		c = YugabyteYSQL.connect(@conninfo).freeze
 		expect{ c.setnonblocking true }.to raise_error(FrozenError)
 		expect{ c.field_name_type = :symbol  }.to raise_error(FrozenError)
 		expect{ c.set_default_encoding }.to raise_error(FrozenError)
@@ -31,15 +31,15 @@ describe PG::Connection do
 	end
 
 	it "shouldn't be shareable for Ractor", :ractor do
-		c = PG.connect(@conninfo)
-		expect{ Ractor.make_shareable(c) }.to raise_error(Ractor::Error, /PG::Connection/)
+		c = YugabyteYSQL.connect(@conninfo)
+		expect{ Ractor.make_shareable(c) }.to raise_error(Ractor::Error, /YugabyteYSQL::Connection/)
 	ensure
 		c&.finish
 	end
 
 	it "should be usable with Ractor", :ractor do
 		vals = Ractor.new(@conninfo) do |conninfo|
-			conn = PG.connect(conninfo)
+			conn = YugabyteYSQL.connect(conninfo)
 			conn.setnonblocking true
 			conn.setnonblocking false
 			conn.exec("SELECT 123").values
@@ -52,7 +52,7 @@ describe PG::Connection do
 
 	it "connects using 7 arguments in a Ractor", :ractor do
 		vals = Ractor.new(@port) do |port|
-			PG.connect( 'localhost', port, nil, nil, :test, nil, nil ) do |conn|
+			YugabyteYSQL.connect( 'localhost', port, nil, nil, :test, nil, nil ) do |conn|
 				conn.exec("SELECT 234").values
 			end
 		end.value
@@ -62,17 +62,17 @@ describe PG::Connection do
 
 	describe "#inspect", :without_transaction do
 		it "should print host, port and user of a fresh connection, but not more" do
-			expect( @conn.inspect ).to match(/<PG::Connection:[0-9a-fx]+ host=localhost port=#{@port} user=\w*>/)
+			expect( @conn.inspect ).to match(/<YugabyteYSQL::Connection:[0-9a-fx]+ host=localhost port=#{@port} user=\w*>/)
 		end
 
 		it "should tell about finished connection" do
-			conn = PG.connect(@conninfo)
+			conn = YugabyteYSQL.connect(@conninfo)
 			conn.finish
-			expect( conn.inspect ).to match(/<PG::Connection:[0-9a-fx]+ finished>/)
+			expect( conn.inspect ).to match(/<YugabyteYSQL::Connection:[0-9a-fx]+ finished>/)
 		end
 
 		it "should tell about connection status" do
-			conn = PG::Connection.connect_start(@conninfo)
+			conn = YugabyteYSQL::Connection.connect_start(@conninfo)
 			expect( conn.inspect ).to match(/ status=CONNECTION_STARTED/)
 		end
 
@@ -97,27 +97,27 @@ describe PG::Connection do
 		end
 
 		it "should tell about non default type_map_for_results" do
-			@conn.type_map_for_results = PG::TypeMapByColumn.new([])
-			expect( @conn.inspect ).to match(/ type_map_for_results=#<PG::TypeMapByColumn:[0-9a-fx]+>/)
+			@conn.type_map_for_results = YugabyteYSQL::TypeMapByColumn.new([])
+			expect( @conn.inspect ).to match(/ type_map_for_results=#<YugabyteYSQL::TypeMapByColumn:[0-9a-fx]+>/)
 		end
 
 		it "should tell about non default type_map_for_queries" do
-			@conn.type_map_for_queries = PG::TypeMapByColumn.new([])
-			expect( @conn.inspect ).to match(/ type_map_for_queries=#<PG::TypeMapByColumn:[0-9a-fx]+>/)
+			@conn.type_map_for_queries = YugabyteYSQL::TypeMapByColumn.new([])
+			expect( @conn.inspect ).to match(/ type_map_for_queries=#<YugabyteYSQL::TypeMapByColumn:[0-9a-fx]+>/)
 		end
 
 		it "should tell about encoder_for_put_copy_data" do
-			@conn.encoder_for_put_copy_data = PG::TextEncoder::CopyRow.new
-			expect( @conn.inspect ).to match(/ encoder_for_put_copy_data=#<PG::TextEncoder::CopyRow:[0-9a-fx]+>/)
+			@conn.encoder_for_put_copy_data = YugabyteYSQL::TextEncoder::CopyRow.new
+			expect( @conn.inspect ).to match(/ encoder_for_put_copy_data=#<YugabyteYSQL::TextEncoder::CopyRow:[0-9a-fx]+>/)
 		end
 
 		it "should tell about decoder_for_get_copy_data" do
-			@conn.decoder_for_get_copy_data = PG::TextDecoder::CopyRow.new
-			expect( @conn.inspect ).to match(/ decoder_for_get_copy_data=#<PG::TextDecoder::CopyRow:[0-9a-fx]+>/)
+			@conn.decoder_for_get_copy_data = YugabyteYSQL::TextDecoder::CopyRow.new
+			expect( @conn.inspect ).to match(/ decoder_for_get_copy_data=#<YugabyteYSQL::TextDecoder::CopyRow:[0-9a-fx]+>/)
 		end
 	end
 
-	describe "PG::Connection#conninfo_parse" do
+	describe "YugabyteYSQL::Connection#conninfo_parse" do
 		it "encode and decode Hash to connection string to Hash" do
 			hash = {
 				:host => 'pgsql.example.com',
@@ -143,7 +143,7 @@ describe PG::Connection do
 		end
 
 		it "can parse connection info strings kind of key=value" do
-			ar = PG::Connection.conninfo_parse("user=auser  host=somehost  port=3334 dbname=db")
+			ar = YugabyteYSQL::Connection.conninfo_parse("user=auser  host=somehost  port=3334 dbname=db")
 			expect( ar ).to be_kind_of( Array )
 			expect( ar.first ).to be_kind_of( Hash )
 			expect( ar.map{|a| a[:keyword] } ).to include( "dbname", "user", "password", "port" )
@@ -151,7 +151,7 @@ describe PG::Connection do
 		end
 
 		it "can parse connection info strings kind of URI" do
-			ar = PG::Connection.conninfo_parse("postgresql://auser@somehost:3334/db")
+			ar = YugabyteYSQL::Connection.conninfo_parse("postgresql://auser@somehost:3334/db")
 			expect( ar ).to be_kind_of( Array )
 			expect( ar.first ).to be_kind_of( Hash )
 			expect( ar.map{|a| a[:keyword] } ).to include( "dbname", "user", "password", "port" )
@@ -159,12 +159,12 @@ describe PG::Connection do
 		end
 
 		it "can parse connection info strings with error" do
-			expect{ PG::Connection.conninfo_parse("host='abc") }.to raise_error(PG::Error, /unterminated quoted string/)
-			expect{ PG::Connection.conninfo_parse("host") }.to raise_error(PG::Error, /missing "=" after/)
+			expect{ YugabyteYSQL::Connection.conninfo_parse("host='abc") }.to raise_error(YugabyteYSQL::Error, /unterminated quoted string/)
+			expect{ YugabyteYSQL::Connection.conninfo_parse("host") }.to raise_error(YugabyteYSQL::Error, /missing "=" after/)
 		end
 	end
 
-	describe "PG::Connection#parse_connect_args" do
+	describe "YugabyteYSQL::Connection#parse_connect_args" do
 		it "shouldn't resolve absolute path in connection option string" do
 			optstring = described_class.parse_connect_args(
 				:host => '/var/socket'
@@ -291,7 +291,7 @@ describe PG::Connection do
 		end
 
 		it "sets the fallback_application_name on new connections" do
-			conn_string = PG::Connection.parse_connect_args( 'dbname=test' )
+			conn_string = YugabyteYSQL::Connection.parse_connect_args( 'dbname=test' )
 
 			conn_name = conn_string[ /application_name='(.*?)'/, 1 ]
 			expect( conn_name ).to include( $0[0..10] )
@@ -300,30 +300,30 @@ describe PG::Connection do
 		end
 
 		it "sets a shortened fallback_application_name on new connections" do
-			old_script_name = PG::Connection.class_eval("PROGRAM_NAME")
+			old_script_name = YugabyteYSQL::Connection.class_eval("PROGRAM_NAME")
 			begin
 				prg = '/this/is/a/very/long/path/with/many/directories/to/our/beloved/ruby'
-				PG::Connection.class_eval("PROGRAM_NAME=#{prg.inspect}")
-				conn_string = PG::Connection.parse_connect_args( 'dbname=test' )
+				YugabyteYSQL::Connection.class_eval("PROGRAM_NAME=#{prg.inspect}")
+				conn_string = YugabyteYSQL::Connection.parse_connect_args( 'dbname=test' )
 				conn_name = conn_string[ /application_name='(.*?)'/, 1 ]
 				expect( conn_name ).to include( prg[0..10] )
 				expect( conn_name ).to include( prg[-10..-1] )
 				expect( conn_name.length ).to be <= 64
 			ensure
-				PG::Connection.class_eval("PROGRAM_NAME=PG.make_shareable(#{old_script_name.inspect})")
+				YugabyteYSQL::Connection.class_eval("PROGRAM_NAME=YugabyteYSQL.make_shareable(#{old_script_name.inspect})")
 			end
 		end
 	end
 
 	it "connects successfully with connection string" do
 		tmpconn = described_class.connect( @conninfo )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		tmpconn.finish
 	end
 
 	it "connects using 7 arguments converted to strings" do
 		tmpconn = described_class.connect( 'localhost', @port, nil, nil, :test, nil, nil )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		tmpconn.finish
 	end
 
@@ -332,7 +332,7 @@ describe PG::Connection do
 			:host => 'localhost',
 			:port => @port,
 			:dbname => :test)
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		tmpconn.finish
 	end
 
@@ -342,7 +342,7 @@ describe PG::Connection do
 			:port => @port,
 			:dbname => :test,
 			:keepalives => 1)
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		tmpconn.finish
 	end
 
@@ -366,7 +366,7 @@ describe PG::Connection do
 		                              :port => @port,
 		                              :dbname => "non-existent")
 				}.to raise_error do |error|
-			expect( error ).to be_an( PG::ConnectionBad )
+			expect( error ).to be_an( YugabyteYSQL::ConnectionBad )
 			expect( error.message ).to match( /database "non-existent" does not exist/i )
 			expect( error.message.encoding ).to eq( Encoding::BINARY )
 		end
@@ -374,7 +374,7 @@ describe PG::Connection do
 
 	it "raises after 'timeout' and two times 'connection refused'" do
 		with_env_vars(PGHOST: nil) do
-			PG::TestingHelpers::ListenSocket.new do |sock|
+			YugabyteYSQL::TestingHelpers::ListenSocket.new do |sock|
 				start_time = Time.now
 				expect {
 					described_class.connect(
@@ -383,8 +383,8 @@ describe PG::Connection do
 						connect_timeout: RUBY_PLATFORM=~/mingw|mswin/i ? 5 : 1,
 						dbname: "test")
 				}.to raise_error do |error|
-					expect( error ).to be_an( PG::ConnectionBad )
-					if PG.library_version >= 140000
+					expect( error ).to be_an( YugabyteYSQL::ConnectionBad )
+					if YugabyteYSQL.library_version >= 140000
 						expect( error.message ).to match( /127\.0\.0\.1.+#{@port_down}.+(Connection refused|ECONNREFUSED).+127\.0\.0\.1.+#{sock.port}.+timeout expired.+127\.0\.0\.1.+#{@port_down}.+(Connection refused|ECONNREFUSED)/im )
 					end
 				end
@@ -395,7 +395,7 @@ describe PG::Connection do
 	end
 
 	it "times out after 2 * connect_timeout seconds on two connections" do
-		PG::TestingHelpers::ListenSocket.new do |sock|
+		YugabyteYSQL::TestingHelpers::ListenSocket.new do |sock|
 			start_time = Time.now
 			expect {
 				described_class.connect(
@@ -404,8 +404,8 @@ describe PG::Connection do
 					connect_timeout: RUBY_PLATFORM=~/mingw|mswin/i ? 3 : 1,
 					dbname: "test")
 			}.to raise_error do |error|
-				expect( error ).to be_an( PG::ConnectionBad )
-				if PG.library_version >= 140000
+				expect( error ).to be_an( YugabyteYSQL::ConnectionBad )
+				if YugabyteYSQL.library_version >= 140000
 					expect( error.message ).to match( /127\.0\.0\.1.+#{sock.port}.+timeout expired.+127\.0\.0\.1.+#{sock.port}.+timeout expired/im )
 				end
 			end
@@ -415,7 +415,7 @@ describe PG::Connection do
 	end
 
 	it "succeeds with second host after connect_timeout" do
-		PG::TestingHelpers::ListenSocket.new do |sock|
+		YugabyteYSQL::TestingHelpers::ListenSocket.new do |sock|
 			start_time = Time.now
 			conn = described_class.connect(
 				host: 'localhost,localhost,localhost',
@@ -433,7 +433,7 @@ describe PG::Connection do
 	context "with multiple PostgreSQL servers", :without_transaction do
 		before :all do
 			@port_ro = @port + 1
-			@dbms = PG::TestingHelpers::PostgresServer.new("read-only",
+			@dbms = YugabyteYSQL::TestingHelpers::PostgresServer.new("read-only",
 				port: @port_ro,
 				postgresql_conf: "default_transaction_read_only=on"
 			)
@@ -445,12 +445,12 @@ describe PG::Connection do
 
 		it "honors target_session_attrs requirements" do
 			uri = "postgres://localhost:#{@port_ro},localhost:#{@port}/postgres?target_session_attrs=read-write"
-			PG.connect(uri) do |conn|
+			YugabyteYSQL.connect(uri) do |conn|
 				expect( conn.port ).to eq( @port )
 			end
 
 			uri = "postgres://localhost:#{@port_ro},localhost:#{@port}/postgres?target_session_attrs=any"
-			PG.connect(uri) do |conn|
+			YugabyteYSQL.connect(uri) do |conn|
 				expect( conn.port ).to eq( @port_ro )
 			end
 		end
@@ -468,16 +468,16 @@ describe PG::Connection do
 		else
 			/authenti.*testusermd5/i
 		end
-		expect { PG.connect(uri) }.to raise_error(error_match)
+		expect { YugabyteYSQL.connect(uri) }.to raise_error(error_match)
 
 		uri = "host=::1,::1,127.0.0.1 port=#{@port_down},#{@port},#{@port} dbname=postgres user=testusermd5 password=secret"
-		PG.connect(uri) do |conn|
+		YugabyteYSQL.connect(uri) do |conn|
 			expect( conn.host ).to eq( "::1" )
 			expect( conn.port ).to eq( @port )
 		end
 
 		uri = "host=::1,::1,127.0.0.1 port=#{@port_down},#{@port_down},#{@port} dbname=postgres user=testusermd5 password=wrong"
-		PG.connect(uri) do |conn|
+		YugabyteYSQL.connect(uri) do |conn|
 			expect( conn.host ).to eq( "127.0.0.1" )
 			expect( conn.port ).to eq( @port )
 		end
@@ -486,7 +486,7 @@ describe PG::Connection do
 	it "connects using URI with multiple hosts", :postgresql_12 do
 		uri = "postgres://localhost:#{@port_down},127.0.0.1:#{@port}/test?keepalives=1"
 		tmpconn = described_class.connect( uri )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		expect( tmpconn.port ).to eq( @port )
 		expect( tmpconn.host ).to eq( "127.0.0.1" )
 		expect( tmpconn.hostaddr ).to match( /\A(::1|127\.0\.0\.1)\z/ )
@@ -496,7 +496,7 @@ describe PG::Connection do
 	it "connects using URI with IPv6 hosts", :postgresql_12, :ipv6 do
 		uri = "postgres://localhost:#{@port},[::1]:#{@port},/test"
 		tmpconn = described_class.connect( uri )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		expect( tmpconn.host ).to eq( "localhost" )
 		expect( tmpconn.hostaddr ).to match( /\A(::1|127\.0\.0\.1)\z/ )
 		tmpconn.finish
@@ -505,26 +505,26 @@ describe PG::Connection do
 	it "connects using URI with UnixSocket host", :postgresql_12, :unix_socket do
 		uri = "postgres://#{@unix_socket.gsub("/", "%2F")}:#{@port}/test"
 		tmpconn = described_class.connect( uri )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		expect( tmpconn.host ).to eq( @unix_socket )
 		expect( tmpconn.hostaddr ).to eq( "" )
 		tmpconn.finish
 	end
 
 	it "connects with environment variables" do
-		skip("Is broken before postgresql-12 on Windows") if RUBY_PLATFORM=~/mingw|mswin/ && PG.library_version < 120000
+		skip("Is broken before postgresql-12 on Windows") if RUBY_PLATFORM=~/mingw|mswin/ && YugabyteYSQL.library_version < 120000
 
 		tmpconn = with_env_vars(PGHOST: "localhost", PGPORT: @port, PGDATABASE: "test") do
 			described_class.connect
 		end
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		expect( tmpconn.host ).to eq( "localhost" )
 		tmpconn.finish
 	end
 
 	it "connects using Hash with multiple hosts", :postgresql_12 do
 		tmpconn = described_class.connect( host: "#{@unix_socket}xx,127.0.0.1,localhost", port: @port, dbname: "test" )
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		expect( tmpconn.host ).to eq( "127.0.0.1" )
 		expect( tmpconn.hostaddr ).to match( /\A127\.0\.0\.1\z/ )
 		tmpconn.finish
@@ -537,7 +537,7 @@ describe PG::Connection do
 			end
 			klass.send(meth, @conninfo) do |conn|
 				expect( conn ).to be_a_kind_of( klass )
-				expect( conn.execute("SELECT 1") ).to be_a_kind_of( PG::Result )
+				expect( conn.execute("SELECT 1") ).to be_a_kind_of( YugabyteYSQL::Result )
 			end
 		end
 	end
@@ -547,7 +547,7 @@ describe PG::Connection do
 		expect( tmpconn ).to be_a( described_class )
 
 		wait_for_polling_ok(tmpconn)
-		expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+		expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		tmpconn.finish
 	end
 
@@ -559,7 +559,7 @@ describe PG::Connection do
 			conn = tmpconn
 
 			wait_for_polling_ok(tmpconn)
-			expect( tmpconn.status ).to eq( PG::CONNECTION_OK )
+			expect( tmpconn.status ).to eq( YugabyteYSQL::CONNECTION_OK )
 		end
 
 		expect( conn ).to be_finished()
@@ -616,7 +616,7 @@ describe PG::Connection do
 			# Connect with SSL, but use a wrong client cert, so that connection is aborted.
 			# A second connection is then started with a new IO.
 			# And since the pipes above were freed in the concurrent thread above, there is a high chance that it's a lower file descriptor than before.
-			conn = PG.connect( @conninfo + " sslcert=#{$pg_server.pgdata}/ruby-pg-ca-cert" )
+			conn = YugabyteYSQL.connect( @conninfo + " sslcert=#{$pg_server.pgdata}/ruby-pg-ca-cert" )
 			expect( conn.ssl_in_use? ).to be_falsey
 
 			# The new connection should work even when the file descriptor has changed.
@@ -632,7 +632,7 @@ describe PG::Connection do
 					Thread.new do
 						Thread.current.report_on_exception = false
 						expect do
-							threaded_conn = PG.connect( @conninfo + " sslcert=#{$pg_server.pgdata}/ruby-pg-ca-cert" )
+							threaded_conn = YugabyteYSQL.connect( @conninfo + " sslcert=#{$pg_server.pgdata}/ruby-pg-ca-cert" )
 							threaded_conn.exec("SELECT 1")
 							threaded_conn.close
 						end.not_to raise_error
@@ -708,7 +708,7 @@ describe PG::Connection do
 		end
 
 		it "sets nonblocking for the connection only" do
-			co2 = PG.connect(@conninfo)
+			co2 = YugabyteYSQL.connect(@conninfo)
 			expect( co2.setnonblocking(true) ).to be_nil
 			expect( co2.isnonblocking ).to eq(true)
 			expect( @conn.isnonblocking ).to eq(false)
@@ -802,14 +802,14 @@ describe PG::Connection do
 					while @conn.get_copy_data
 					end
 				end
-			end.to raise_error(PG::QueryCanceled){|err| expect(err).to have_attributes(connection: @conn) }
+			end.to raise_error(YugabyteYSQL::QueryCanceled){|err| expect(err).to have_attributes(connection: @conn) }
 		end
 	end
 
 	it "raises proper error when sending fails" do
-		sock = PG::TestingHelpers::ListenSocket.new('127.0.0.1') { }
+		sock = YugabyteYSQL::TestingHelpers::ListenSocket.new('127.0.0.1') { }
 		conn = described_class.connect_start( '127.0.0.1', sock.port, "", "", "me", "xxxx", "somedb" )
-		expect{ conn.exec 'SELECT 1' }.to raise_error(PG::UnableToSend, /no connection/){|err| expect(err).to have_attributes(connection: conn) }
+		expect{ conn.exec 'SELECT 1' }.to raise_error(YugabyteYSQL::UnableToSend, /no connection/){|err| expect(err).to have_attributes(connection: conn) }
 	end
 
 	it "doesn't leave stale server connections after finish" do
@@ -842,19 +842,19 @@ describe PG::Connection do
 				external_host: 'localhost',
 				external_port: ENV['PGPORT'].to_i,
 				internal_host: "127.0.0.1",
-				internal_port: PG::DEF_PGPORT,
+				internal_port: YugabyteYSQL::DEF_PGPORT,
 				debug: ENV['PG_DEBUG']=='1')
 
-		PG.connect(host: "localhost",
+		YugabyteYSQL.connect(host: "localhost",
 				port: "",
 				dbname: "test") do |conn|
-			expect( conn.port ).to eq( PG::DEF_PGPORT )
+			expect( conn.port ).to eq( YugabyteYSQL::DEF_PGPORT )
 		end
 
-		PG.connect(hostaddr: "127.0.0.1",
+		YugabyteYSQL.connect(hostaddr: "127.0.0.1",
 				port: nil,
 				dbname: "test") do |conn|
-			expect( conn.port ).to eq( PG::DEF_PGPORT )
+			expect( conn.port ).to eq( YugabyteYSQL::DEF_PGPORT )
 		end
 
 		gate.finish
@@ -867,15 +867,15 @@ describe PG::Connection do
 	end
 
 	it "can set error verbosity" do
-		old = @conn.set_error_verbosity( PG::PQERRORS_TERSE )
+		old = @conn.set_error_verbosity( YugabyteYSQL::PQERRORS_TERSE )
 		new = @conn.set_error_verbosity( old )
-		expect( new ).to eq( PG::PQERRORS_TERSE )
+		expect( new ).to eq( YugabyteYSQL::PQERRORS_TERSE )
 	end
 
 	it "can set error context visibility" do
-		old = @conn.set_error_context_visibility( PG::PQSHOW_CONTEXT_NEVER )
+		old = @conn.set_error_context_visibility( YugabyteYSQL::PQSHOW_CONTEXT_NEVER )
 		new = @conn.set_error_context_visibility( old )
-		expect( new ).to eq( PG::PQSHOW_CONTEXT_NEVER )
+		expect( new ).to eq( YugabyteYSQL::PQSHOW_CONTEXT_NEVER )
 	end
 
 	let(:expected_trace_output_pre_14) do
@@ -935,7 +935,7 @@ describe PG::Connection do
 
 		trace_data = trace_file.read
 
-		if PG.library_version >= 140000
+		if YugabyteYSQL.library_version >= 140000
 			trace_data.gsub!( /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{6}/, 'TIMESTAMP' )
 
 			expect( trace_data ).to eq( expected_trace_output )
@@ -958,9 +958,9 @@ describe PG::Connection do
 		end
 
 		it "should raise an error on a bad connection" do
-			conn = PG::Connection.connect_start( @conninfo )
+			conn = YugabyteYSQL::Connection.connect_start( @conninfo )
 			conn.finish
-			expect{ conn.server_version }.to raise_error(PG::ConnectionBad)
+			expect{ conn.server_version }.to raise_error(YugabyteYSQL::ConnectionBad)
 		end
 	end
 
@@ -970,9 +970,9 @@ describe PG::Connection do
 		end
 
 		it "should raise an error on a bad connection" do
-			conn = PG::Connection.connect_start( @conninfo )
+			conn = YugabyteYSQL::Connection.connect_start( @conninfo )
 			conn.finish
-			expect{ conn.protocol_version }.to raise_error(PG::ConnectionBad)
+			expect{ conn.protocol_version }.to raise_error(YugabyteYSQL::ConnectionBad)
 		end
 	end
 
@@ -982,7 +982,7 @@ describe PG::Connection do
 			@conn.cancel if notice =~ /foobar/
 		end
 		@conn.send_query "do $$ BEGIN RAISE NOTICE 'foobar'; PERFORM pg_sleep(10); END; $$ LANGUAGE plpgsql;"
-		expect{ @conn.get_last_result }.to raise_error(PG::QueryCanceled){|err| expect(err).to have_attributes(connection: @conn) }
+		expect{ @conn.get_last_result }.to raise_error(YugabyteYSQL::QueryCanceled){|err| expect(err).to have_attributes(connection: @conn) }
 		expect( Time.now - start ).to be < 9.9
 	end
 
@@ -1008,7 +1008,7 @@ describe PG::Connection do
 			end
 		end
 
-		it "rolls back a transaction if a PG::RollbackTransaction exception is raised" do
+		it "rolls back a transaction if a YugabyteYSQL::RollbackTransaction exception is raised" do
 			# abort the per-example transaction so we can test our own
 			@conn.exec( 'ROLLBACK' )
 			@conn.exec( "CREATE TABLE pie ( flavor TEXT )" )
@@ -1016,7 +1016,7 @@ describe PG::Connection do
 			begin
 				@conn.transaction do
 					@conn.exec( "INSERT INTO pie VALUES ('rhubarb'), ('cherry'), ('schizophrenia')" )
-					raise PG::RollbackTransaction
+					raise YugabyteYSQL::RollbackTransaction
 				end
 
 				res = @conn.exec( "SELECT * FROM pie" )
@@ -1039,7 +1039,7 @@ describe PG::Connection do
 				end
 
 				# if the previous transaction committed, the result should be visible from another conn/transaction
-				@conn2 = PG.connect(@conninfo)
+				@conn2 = YugabyteYSQL.connect(@conninfo)
 				begin
 					res = @conn2.exec( "SELECT * FROM pie" )
 					expect( res.ntuples ).to eq( 3 )
@@ -1068,10 +1068,10 @@ describe PG::Connection do
 		it "not read past the end of a large object" do
 			@conn.transaction do
 				oid = @conn.lo_create( 0 )
-				fd = @conn.lo_open( oid, PG::INV_READ|PG::INV_WRITE )
+				fd = @conn.lo_open( oid, YugabyteYSQL::INV_READ|YugabyteYSQL::INV_WRITE )
 				expect( @conn.lo_write( fd, "foobar" ) ).to eq( 6 )
 				expect( @conn.lo_read( fd, 10 ) ).to be_nil()
-				expect( @conn.lo_lseek( fd, 0, PG::SEEK_SET ) ).to eq( 0 )
+				expect( @conn.lo_lseek( fd, 0, YugabyteYSQL::SEEK_SET ) ).to eq( 0 )
 				expect( @conn.lo_read( fd, 10 ) ).to eq( 'foobar' )
 				expect( @conn.lo_close( fd ) ).to be_nil
 				expect( @conn.lo_unlink( oid ) ).to be_nil
@@ -1080,7 +1080,7 @@ describe PG::Connection do
 
 		it "large object can handle big data", :unix_socket do
 			# Using lo_write with > 300000 bytes on a UnixSocket connection in nonblocking mode results in the following error:
-			#   PG::UnableToSend: unexpected response from server; first received character was "V"
+			#   YugabyteYSQL::UnableToSend: unexpected response from server; first received character was "V"
 			# This is because the lo_write call doesn't wait for the response of the server function, but sends the next command early, so that results overlap.
 			# Switching to blocking mode as part of lo_* calls fixes this issue and is tested here.
 
@@ -1090,13 +1090,13 @@ describe PG::Connection do
 			bytes = Random.urandom(512000)
 			oid = conn.lo_creat
 			conn.transaction do
-				fd = conn.lo_open( oid, PG::INV_WRITE )
+				fd = conn.lo_open( oid, YugabyteYSQL::INV_WRITE )
 				conn.lo_write( fd, bytes )
 				expect( conn.lo_close( fd ) ).to be_nil
 			end
 
 			conn.transaction do
-				fd = conn.lo_open( oid, PG::INV_READ )
+				fd = conn.lo_open( oid, YugabyteYSQL::INV_READ )
 				bytes2 = conn.lo_read( fd, bytes.bytesize )
 				expect( bytes2 ).to eq( bytes )
 				expect( conn.lo_close( fd ) ).to be_nil
@@ -1136,7 +1136,7 @@ describe PG::Connection do
 				expect( res.nfields ).to eq( num_params )
 				expect( res.values ).to eq( [num_params.times.map(&:to_s)] )
 			end
-		rescue PG::ProgramLimitExceeded
+		rescue YugabyteYSQL::ProgramLimitExceeded
 			# Stop silently if the server complains about too many params
 		end
 	end
@@ -1274,7 +1274,7 @@ describe PG::Connection do
 	it "yields the result if block is given to exec" do
 		rval = @conn.exec( "select 1234::int as a union select 5678::int as a" ) do |result|
 			values = []
-			expect( result ).to be_kind_of( PG::Result )
+			expect( result ).to be_kind_of( YugabyteYSQL::Result )
 			expect( result.ntuples ).to eq( 2 )
 			result.each do |tuple|
 				values << tuple['a']
@@ -1313,7 +1313,7 @@ describe PG::Connection do
 		end
 		@conn.sync_put_copy_end
 		res = @conn.get_last_result
-		expect( res.result_status ).to eq( PG::PGRES_COMMAND_OK )
+		expect( res.result_status ).to eq( YugabyteYSQL::PGRES_COMMAND_OK )
 		@conn.exec( "DROP TABLE IF EXISTS copytable2" )
 	end
 
@@ -1321,7 +1321,7 @@ describe PG::Connection do
 		it "can process #copy_data output queries in text format" do
 			rows = []
 			res2 = @conn.copy_data( "COPY (SELECT 1 UNION ALL SELECT 2) TO STDOUT" ) do |res|
-				expect( res.result_status ).to eq( PG::PGRES_COPY_OUT )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_COPY_OUT )
 				expect( res.nfields ).to eq( 1 )
 				expect( res.binary_tuples ).to eq( 0 )
 				while row=@conn.get_copy_data
@@ -1329,14 +1329,14 @@ describe PG::Connection do
 				end
 			end
 			expect( rows ).to eq( ["1\n", "2\n"] )
-			expect( res2.result_status ).to eq( PG::PGRES_COMMAND_OK )
+			expect( res2.result_status ).to eq( YugabyteYSQL::PGRES_COMMAND_OK )
 			expect( @conn ).to still_be_usable
 		end
 
 		it "can process #copy_data output queries in binary format" do
 			rows = []
 			res2 = @conn.copy_data( "COPY (SELECT 1 UNION ALL SELECT 2) TO STDOUT (FORMAT binary)" ) do |res|
-				expect( res.result_status ).to eq( PG::PGRES_COPY_OUT )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_COPY_OUT )
 				expect( res.nfields ).to eq( 1 )
 				expect( res.binary_tuples ).to eq( 1 )
 				while row=@conn.get_copy_data
@@ -1344,7 +1344,7 @@ describe PG::Connection do
 				end
 			end
 			expect( rows ).to eq( ["PGCOPY\n\xFF\r\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x04\x00\x00\x00\x01".b, "\x00\x01\x00\x00\x00\x04\x00\x00\x00\x02".b, "\xFF\xFF".b] )
-			expect( res2.result_status ).to eq( PG::PGRES_COMMAND_OK )
+			expect( res2.result_status ).to eq( YugabyteYSQL::PGRES_COMMAND_OK )
 			expect( @conn ).to still_be_usable
 		end
 
@@ -1353,7 +1353,7 @@ describe PG::Connection do
 				@conn.copy_data( "COPY (SELECT 1 UNION ALL SELECT 2) TO STDOUT" ) do |res|
 					@conn.get_copy_data
 				end
-			}.to raise_error(PG::NotAllCopyDataRetrieved, /Not all/){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::NotAllCopyDataRetrieved, /Not all/){|err| expect(err).to have_attributes(connection: @conn) }
 			expect( @conn ).to still_be_usable
 		end
 
@@ -1386,7 +1386,7 @@ describe PG::Connection do
 						while @conn.get_copy_data
 						end
 					end
-				}.to raise_error(PG::Error, /test-error/){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error, /test-error/){|err| expect(err).to have_attributes(connection: @conn) }
 			end
 			expect( @conn ).to still_be_usable
 		end
@@ -1394,13 +1394,13 @@ describe PG::Connection do
 		it "can process #copy_data input queries in text format" do
 			@conn.exec( "CREATE TEMP TABLE copytable (col1 TEXT)" )
 			res2 = @conn.copy_data( "COPY copytable FROM STDOUT" ) do |res|
-				expect( res.result_status ).to eq( PG::PGRES_COPY_IN )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_COPY_IN )
 				expect( res.nfields ).to eq( 1 )
 				expect( res.binary_tuples ).to eq( 0 )
 				@conn.put_copy_data "1\n"
 				@conn.put_copy_data "2\n"
 			end
-			expect( res2.result_status ).to eq( PG::PGRES_COMMAND_OK )
+			expect( res2.result_status ).to eq( YugabyteYSQL::PGRES_COMMAND_OK )
 
 			expect( @conn ).to still_be_usable
 
@@ -1412,7 +1412,7 @@ describe PG::Connection do
 		it "can process #copy_data input queries in binary format" do
 			@conn.exec( "CREATE TEMP TABLE copytable (col1 TEXT)" )
 			res2 = @conn.copy_data( "COPY copytable FROM STDOUT (FORMAT binary)" ) do |res|
-				expect( res.result_status ).to eq( PG::PGRES_COPY_IN )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_COPY_IN )
 				expect( res.nfields ).to eq( 1 )
 				expect( res.binary_tuples ).to eq( 1 )
 				# header and first record ("1")
@@ -1422,7 +1422,7 @@ describe PG::Connection do
 				# trailer
 				@conn.put_copy_data "\xFF\xFF".b
 			end
-			expect( res2.result_status ).to eq( PG::PGRES_COMMAND_OK )
+			expect( res2.result_status ).to eq( YugabyteYSQL::PGRES_COMMAND_OK )
 
 			expect( @conn ).to still_be_usable
 
@@ -1471,7 +1471,7 @@ describe PG::Connection do
 					@conn.copy_data( "COPY copytable FROM STDOUT" ) do |res|
 						@conn.put_copy_data "xyz\n"
 					end
-				}.to raise_error(PG::Error, /invalid input syntax for .*integer/){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error, /invalid input syntax for .*integer/){|err| expect(err).to have_attributes(connection: @conn) }
 			end
 			expect( @conn ).to still_be_usable
 			@conn.exec( "DROP TABLE IF EXISTS copytable" )
@@ -1499,7 +1499,7 @@ describe PG::Connection do
 				@conn.copy_data( "COPY copytable FROM STDOUT" ) do |res|
 					@conn.exec "SELECT 1"
 				end
-			}.to raise_error(PG::LostCopyState, /another SQL query/){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::LostCopyState, /another SQL query/){|err| expect(err).to have_attributes(connection: @conn) }
 			expect( @conn ).to still_be_usable
 			@conn.exec( "DROP TABLE copytable" )
 		end
@@ -1510,7 +1510,7 @@ describe PG::Connection do
 				@conn.copy_data( "COPY (VALUES(1), (2)) TO STDOUT" ) do |res|
 					@conn.exec "SELECT 3"
 				end
-			}.to raise_error(PG::LostCopyState, /another SQL query/){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::LostCopyState, /another SQL query/){|err| expect(err).to have_attributes(connection: @conn) }
 			expect( @conn ).to still_be_usable
 		end
 
@@ -1526,7 +1526,7 @@ describe PG::Connection do
 			@conn.setnonblocking(true)
 			expect {
 				@conn.copy_data( "COPY copytable FROM STDOUT" )
-			}.to raise_error(PG::NotInBlockingMode){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::NotInBlockingMode){|err| expect(err).to have_attributes(connection: @conn) }
 			@conn.setnonblocking(false)
 		end
 	end
@@ -1607,7 +1607,7 @@ describe PG::Connection do
 
 
 	it "honors the connect_timeout connection parameter" do
-		conn = PG.connect( port: @port, dbname: 'test', connect_timeout: 11 )
+		conn = YugabyteYSQL.connect( port: @port, dbname: 'test', connect_timeout: 11 )
 		begin
 			expect( conn.conninfo_hash[:connect_timeout] ).to eq( "11" )
 		ensure
@@ -1618,7 +1618,7 @@ describe PG::Connection do
 	it "can connect concurrently in parallel threads" do
 		res = 5.times.map do |idx|
 			Thread.new do
-				PG.connect(@conninfo) do |conn|
+				YugabyteYSQL.connect(@conninfo) do |conn|
 					[conn.ssl_in_use?, conn.exec("select 82").getvalue(0, 0)]
 				end
 			end
@@ -1670,7 +1670,7 @@ describe PG::Connection do
 			}.to raise_error( TypeError )
 			expect {
 				@conn.encrypt_password( "postgres", "postgres", "invalid" )
-			}.to raise_error( PG::Error, /unrecognized/ )
+			}.to raise_error( YugabyteYSQL::Error, /unrecognized/ )
 		end
 	end
 
@@ -1715,15 +1715,15 @@ describe PG::Connection do
 
 	it "handles server close while asynchronous connect" do
 		conn = nil
-		PG::TestingHelpers::ListenSocket.new('127.0.0.1') do |sock|
+		YugabyteYSQL::TestingHelpers::ListenSocket.new('127.0.0.1') do |sock|
 			conn = described_class.connect_start( '127.0.0.1', sock.port, "", "", "me", "xxxx", "somedb" )
-			expect( [PG::PGRES_POLLING_WRITING, PG::CONNECTION_OK] ).to include conn.connect_poll
+			expect( [YugabyteYSQL::PGRES_POLLING_WRITING, YugabyteYSQL::CONNECTION_OK] ).to include conn.connect_poll
 			select( nil, [conn.socket_io], nil, 0.2 )
 		end
-		if conn.connect_poll == PG::PGRES_POLLING_READING
+		if conn.connect_poll == YugabyteYSQL::PGRES_POLLING_READING
 			select( [conn.socket_io], nil, nil, 0.2 )
 		end
-		expect( conn.connect_poll ).to eq( PG::PGRES_POLLING_FAILED )
+		expect( conn.connect_poll ).to eq( YugabyteYSQL::PGRES_POLLING_FAILED )
 	end
 
 	describe "#discard_results" do
@@ -1753,7 +1753,7 @@ describe PG::Connection do
 		end
 
 		it "returns false on connection failures" do
-			conn = PG.connect(@conninfo)
+			conn = YugabyteYSQL.connect(@conninfo)
 			conn.send_query("select pg_terminate_backend(pg_backend_pid());")
 			expect( conn.discard_results ).to eq( false )
 		end
@@ -1780,22 +1780,22 @@ describe PG::Connection do
 	end
 
 	it "carries the connection in case of connection errors" do
-		conn = PG.connect(@conninfo)
+		conn = YugabyteYSQL.connect(@conninfo)
 		expect {
 			conn.exec("select pg_terminate_backend(pg_backend_pid());")
-		}.to raise_error(PG::Error, /connection has been closed|terminating connection|server closed the connection unexpectedly/i){|err| expect(err).to have_attributes(connection: conn) }
+		}.to raise_error(YugabyteYSQL::Error, /connection has been closed|terminating connection|server closed the connection unexpectedly/i){|err| expect(err).to have_attributes(connection: conn) }
 	end
 
 	it "raises a rescue-able error if #finish is called twice", :without_transaction do
-		conn = PG.connect( @conninfo )
+		conn = YugabyteYSQL.connect( @conninfo )
 
 		conn.finish
-		expect { conn.finish }.to raise_error( PG::ConnectionBad, /connection is closed/i ){|err| expect(err).to have_attributes(connection: conn) }
+		expect { conn.finish }.to raise_error( YugabyteYSQL::ConnectionBad, /connection is closed/i ){|err| expect(err).to have_attributes(connection: conn) }
 	end
 
 	it "can use conn.reset to restart the connection" do
 		ios = IO.pipe
-		conn = PG.connect( @conninfo )
+		conn = YugabyteYSQL.connect( @conninfo )
 
 		# Close the two pipe file descriptors, so that the file descriptor of
 		# newly established connection is probably distinct from the previous one.
@@ -1821,20 +1821,20 @@ describe PG::Connection do
 		expect do
 			conn.reset
 			conn.exec("select 1")
-		end.to raise_error(PG::Error)
+		end.to raise_error(YugabyteYSQL::Error)
 	end
 
 
 	it "closes the IO fetched from #socket_io when the connection is closed", :without_transaction do
-		conn = PG.connect( @conninfo )
+		conn = YugabyteYSQL.connect( @conninfo )
 		io = conn.socket_io
 		conn.finish
 		expect( io ).to be_closed()
-		expect { conn.socket_io }.to raise_error( PG::ConnectionBad, /connection is closed/i ){|err| expect(err).to have_attributes(connection: conn) }
+		expect { conn.socket_io }.to raise_error( YugabyteYSQL::ConnectionBad, /connection is closed/i ){|err| expect(err).to have_attributes(connection: conn) }
 	end
 
 	it "closes the IO fetched from #socket_io when the connection is reset", :without_transaction do
-		conn = PG.connect( @conninfo )
+		conn = YugabyteYSQL.connect( @conninfo )
 		io = conn.socket_io
 		conn.reset
 		expect( io ).to be_closed()
@@ -1844,14 +1844,14 @@ describe PG::Connection do
 
 	it "consume_input should raise ConnectionBad for a closed connection" do
 		conn = nil
-		PG::TestingHelpers::ListenSocket.new '127.0.0.1' do |sock|
+		YugabyteYSQL::TestingHelpers::ListenSocket.new '127.0.0.1' do |sock|
 			conn = described_class.connect_start( '127.0.0.1', sock.port, "", "", "me", "xxxx", "somedb" )
-			while [PG::CONNECTION_STARTED, PG::CONNECTION_MADE].include?(conn.connect_poll)
+			while [YugabyteYSQL::CONNECTION_STARTED, YugabyteYSQL::CONNECTION_MADE].include?(conn.connect_poll)
 				sleep 0.1
 			end
 		end
-		expect{ conn.consume_input }.to raise_error(PG::ConnectionBad, /server closed the connection unexpectedly/){|err| expect(err).to have_attributes(connection: conn) }
-		expect{ conn.consume_input }.to raise_error(PG::ConnectionBad, /can't get socket descriptor|connection not open/){|err| expect(err).to have_attributes(connection: conn) }
+		expect{ conn.consume_input }.to raise_error(YugabyteYSQL::ConnectionBad, /server closed the connection unexpectedly/){|err| expect(err).to have_attributes(connection: conn) }
+		expect{ conn.consume_input }.to raise_error(YugabyteYSQL::ConnectionBad, /can't get socket descriptor|connection not open/){|err| expect(err).to have_attributes(connection: conn) }
 	end
 
 	describe :check_socket do
@@ -1869,23 +1869,23 @@ describe PG::Connection do
 		end
 
 		it "raises error on broken connection" do
-			conn = PG.connect(@conninfo)
+			conn = YugabyteYSQL.connect(@conninfo)
 			conn.send_query "SELECT pg_terminate_backend(pg_backend_pid())"
 			expect do
 				# Windows sometimes delivers the socket error prematurely in get_result, due a bug in the TCP stack
-				expect( conn.get_result.result_status ).to be( PG::PGRES_FATAL_ERROR )
+				expect( conn.get_result.result_status ).to be( YugabyteYSQL::PGRES_FATAL_ERROR )
 
 				wait_check_socket(conn)
-			end.to raise_error(PG::ConnectionBad, /SSL connection has been closed unexpectedly|server closed the connection unexpectedly/)
+			end.to raise_error(YugabyteYSQL::ConnectionBad, /SSL connection has been closed unexpectedly|server closed the connection unexpectedly/)
 		end
 
 		it "processes messages before connection error" do
-			conn = PG.connect(@conninfo)
+			conn = YugabyteYSQL.connect(@conninfo)
 			conn.send_query "do $$ BEGIN RAISE NOTICE 'foo'; PERFORM pg_terminate_backend(pg_backend_pid()); END; $$ LANGUAGE plpgsql;"
 
 			expect do
 				wait_check_socket(conn)
-			end.to raise_error(PG::ConnectionBad, /SSL connection has been closed unexpectedly|server closed the connection unexpectedly/)
+			end.to raise_error(YugabyteYSQL::ConnectionBad, /SSL connection has been closed unexpectedly|server closed the connection unexpectedly/)
 		end
 	end
 
@@ -2010,12 +2010,12 @@ describe PG::Connection do
 
 		it "pings successfully with connection string" do
 			ping = described_class.ping(@conninfo)
-			expect( ping ).to eq( PG::PQPING_OK )
+			expect( ping ).to eq( YugabyteYSQL::PQPING_OK )
 		end
 
 		it "pings using 7 arguments converted to strings" do
 			ping = described_class.ping('localhost', @port, nil, nil, :test, nil, nil)
-			expect( ping ).to eq( PG::PQPING_OK )
+			expect( ping ).to eq( YugabyteYSQL::PQPING_OK )
 		end
 
 		it "pings using a hash of connection parameters" do
@@ -2023,7 +2023,7 @@ describe PG::Connection do
 				:host => 'localhost',
 				:port => @port,
 				:dbname => :test)
-			expect( ping ).to eq( PG::PQPING_OK )
+			expect( ping ).to eq( YugabyteYSQL::PQPING_OK )
 		end
 
 		it "returns correct response when ping connection cannot be established" do
@@ -2031,12 +2031,12 @@ describe PG::Connection do
 				:host => 'localhost',
 				:port => 9999,
 				:dbname => :test)
-			expect( ping ).to eq( PG::PQPING_NO_RESPONSE )
+			expect( ping ).to eq( YugabyteYSQL::PQPING_NO_RESPONSE )
 		end
 
 		it "returns error when ping connection arguments are wrong" do
 			ping = described_class.ping('localhost', 'localhost', nil, nil, :test, nil, nil)
-			expect( ping ).to_not eq( PG::PQPING_OK )
+			expect( ping ).to_not eq( YugabyteYSQL::PQPING_OK )
 		end
 
 		it "returns correct response when ping connection arguments are wrong" do
@@ -2044,7 +2044,7 @@ describe PG::Connection do
 				:host => 'localhost',
 				:invalid_option => 9999,
 				:dbname => :test)
-			expect( ping ).to eq( PG::PQPING_NO_ATTEMPT )
+			expect( ping ).to eq( YugabyteYSQL::PQPING_NO_ATTEMPT )
 		end
 
 	end
@@ -2054,7 +2054,7 @@ describe PG::Connection do
 		it "raises an error when called at the wrong time" do
 			expect {
 				@conn.set_single_row_mode
-			}.to raise_error(PG::Error, /PQsetSingleRowMode/){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::Error, /PQsetSingleRowMode/){|err| expect(err).to have_attributes(connection: @conn) }
 		end
 
 		it "should work in single row mode" do
@@ -2069,12 +2069,12 @@ describe PG::Connection do
 			end
 			expect( results.length ).to eq( 11 )
 			results[0..-2].each do |res|
-				expect( res.result_status ).to eq( PG::PGRES_SINGLE_TUPLE )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_SINGLE_TUPLE )
 				values = res.field_values('generate_series')
 				expect( values.length ).to eq( 1 )
 				expect( values.first.to_i ).to be > 0
 			end
-			expect( results.last.result_status ).to eq( PG::PGRES_TUPLES_OK )
+			expect( results.last.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_OK )
 			expect( results.last.ntuples ).to eq( 0 )
 		end
 
@@ -2103,9 +2103,9 @@ describe PG::Connection do
 					res.check
 					first_result ||= res
 				end
-			end.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
-			expect( first_result.kind_of?(PG::Result) ).to be_truthy
-			expect( first_result.result_status ).to eq( PG::PGRES_SINGLE_TUPLE )
+			end.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
+			expect( first_result.kind_of?(YugabyteYSQL::Result) ).to be_truthy
+			expect( first_result.result_status ).to eq( YugabyteYSQL::PGRES_SINGLE_TUPLE )
 		end
 
 	end
@@ -2115,13 +2115,13 @@ describe PG::Connection do
 		it "raises an error when called at the wrong time" do
 			expect {
 				@conn.set_chunked_rows_mode(2)
-			}.to raise_error(PG::Error, /PQsetChunkedRowsMode/){|err| expect(err).to have_attributes(connection: @conn) }
+			}.to raise_error(YugabyteYSQL::Error, /PQsetChunkedRowsMode/){|err| expect(err).to have_attributes(connection: @conn) }
 		end
 
 		it "raises an error when called with wrong arguments" do
 			expect { @conn.set_chunked_rows_mode(:nonint) }.to raise_error(TypeError)
-			expect { @conn.set_chunked_rows_mode(0) }.to raise_error(PG::Error, /PQsetChunkedRowsMode/)
-			expect { @conn.set_chunked_rows_mode(-2) }.to raise_error(PG::Error)
+			expect { @conn.set_chunked_rows_mode(0) }.to raise_error(YugabyteYSQL::Error, /PQsetChunkedRowsMode/)
+			expect { @conn.set_chunked_rows_mode(-2) }.to raise_error(YugabyteYSQL::Error)
 		end
 
 		it "should work in chunked rows mode" do
@@ -2136,12 +2136,12 @@ describe PG::Connection do
 			end
 			expect( results.length ).to eq( 5 )
 			results[0..-2].each do |res|
-				expect( res.result_status ).to eq( PG::PGRES_TUPLES_CHUNK )
+				expect( res.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_CHUNK )
 				values = res.field_values('generate_series')
 				expect( values.length ).to eq( 3 )
 				expect( values.first.to_i ).to be > 0
 			end
-			expect( results.last.result_status ).to eq( PG::PGRES_TUPLES_OK )
+			expect( results.last.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_OK )
 			expect( results.last.ntuples ).to eq( 0 )
 		end
 
@@ -2170,9 +2170,9 @@ describe PG::Connection do
 					res.check
 					first_result ||= res
 				end
-			end.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
-			expect( first_result.kind_of?(PG::Result) ).to be_truthy
-			expect( first_result.result_status ).to eq( PG::PGRES_TUPLES_CHUNK )
+			end.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
+			expect( first_result.kind_of?(YugabyteYSQL::Result) ).to be_truthy
+			expect( first_result.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_CHUNK )
 		end
 
 	end
@@ -2182,9 +2182,9 @@ describe PG::Connection do
 		describe "pipeline_status" do
 			it "can enter and exit the pipeline mode" do
 				@conn.enter_pipeline_mode
-				expect( @conn.pipeline_status ).to eq( PG::PQ_PIPELINE_ON )
+				expect( @conn.pipeline_status ).to eq( YugabyteYSQL::PQ_PIPELINE_ON )
 				@conn.exit_pipeline_mode
-				expect( @conn.pipeline_status ).to eq( PG::PQ_PIPELINE_OFF )
+				expect( @conn.pipeline_status ).to eq( YugabyteYSQL::PQ_PIPELINE_OFF )
 			end
 		end
 
@@ -2192,14 +2192,14 @@ describe PG::Connection do
 			it "does nothing if already in pipeline mode" do
 				@conn.enter_pipeline_mode
 				@conn.enter_pipeline_mode
-				expect( @conn.pipeline_status ).to eq( PG::PQ_PIPELINE_ON )
+				expect( @conn.pipeline_status ).to eq( YugabyteYSQL::PQ_PIPELINE_ON )
 			end
 
 			it "raises an error when called with pending results" do
 				@conn.send_query_params "select 1", []
 				expect {
 					@conn.enter_pipeline_mode
-				}.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
 				@conn.get_last_result
 			end
 		end
@@ -2207,7 +2207,7 @@ describe PG::Connection do
 		describe "exit_pipeline_mode" do
 			it "does nothing if not in pipeline mode" do
 				@conn.exit_pipeline_mode
-				expect( @conn.pipeline_status ).to eq( PG::PQ_PIPELINE_OFF )
+				expect( @conn.pipeline_status ).to eq( YugabyteYSQL::PQ_PIPELINE_OFF )
 			end
 
 			it "raises an error when called with pending results" do
@@ -2215,7 +2215,7 @@ describe PG::Connection do
 				@conn.send_query_params "select 1", []
 				expect {
 					@conn.exit_pipeline_mode
-				}.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
 				@conn.pipeline_sync
 				@conn.get_last_result
 			end
@@ -2226,9 +2226,9 @@ describe PG::Connection do
 				@conn.enter_pipeline_mode
 				@conn.send_query_params "select 6", []
 				@conn.pipeline_sync
-				expect( @conn.get_result.result_status ).to eq( PG::PGRES_TUPLES_OK )
+				expect( @conn.get_result.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_OK )
 				expect( @conn.get_result ).to be_nil
-				expect( @conn.get_result.result_status ).to eq( PG::PGRES_PIPELINE_SYNC )
+				expect( @conn.get_result.result_status ).to eq( YugabyteYSQL::PGRES_PIPELINE_SYNC )
 				expect( @conn.get_result ).to be_nil
 				expect( @conn.get_result ).to be_nil
 				@conn.exit_pipeline_mode
@@ -2237,7 +2237,7 @@ describe PG::Connection do
 			it "raises an error when not in pipeline mode" do
 				expect {
 					@conn.pipeline_sync
-				}.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
 			end
 
 			it "has send_pipeline_sync method", :postgresql_17 do
@@ -2252,7 +2252,7 @@ describe PG::Connection do
 				@conn.send_query_params "select 1", []
 				@conn.send_flush_request
 				@conn.flush
-				expect( @conn.get_result.result_status ).to eq( PG::PGRES_TUPLES_OK )
+				expect( @conn.get_result.result_status ).to eq( YugabyteYSQL::PGRES_TUPLES_OK )
 				expect( @conn.get_result ).to be_nil
 				expect( @conn.get_result ).to be_nil
 			end
@@ -2261,7 +2261,7 @@ describe PG::Connection do
 				@conn.send_query_params "select 1", []
 				expect {
 					@conn.send_flush_request
-				}.to raise_error(PG::Error){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::Error){|err| expect(err).to have_attributes(connection: @conn) }
 			end
 		end
 
@@ -2271,7 +2271,7 @@ describe PG::Connection do
 				@conn.send_query_params "select 6", []
 				@conn.pipeline_sync
 				expect( @conn.get_last_result.values ).to eq( [["6"]] )
-				expect( @conn.get_last_result.result_status ).to eq( PG::PGRES_PIPELINE_SYNC )
+				expect( @conn.get_last_result.result_status ).to eq( YugabyteYSQL::PGRES_PIPELINE_SYNC )
 				@conn.exit_pipeline_mode
 			end
 
@@ -2282,16 +2282,16 @@ describe PG::Connection do
 				@conn.pipeline_sync
 				begin
 					@conn.get_last_result
-				rescue PG::SyntaxError => err1
+				rescue YugabyteYSQL::SyntaxError => err1
 				end
-				expect( err1.result.result_status ).to eq( PG::PGRES_FATAL_ERROR )
+				expect( err1.result.result_status ).to eq( YugabyteYSQL::PGRES_FATAL_ERROR )
 				begin
 					@conn.get_last_result
-				rescue PG::UnableToSend => err2
+				rescue YugabyteYSQL::UnableToSend => err2
 				end
-				expect( err2.result.result_status ).to eq( PG::PGRES_PIPELINE_ABORTED )
-				expect( @conn.pipeline_status ).to eq( PG::PQ_PIPELINE_ABORTED )
-				expect( @conn.get_last_result.result_status ).to eq( PG::PGRES_PIPELINE_SYNC )
+				expect( err2.result.result_status ).to eq( YugabyteYSQL::PGRES_PIPELINE_ABORTED )
+				expect( @conn.pipeline_status ).to eq( YugabyteYSQL::PQ_PIPELINE_ABORTED )
+				expect( @conn.get_last_result.result_status ).to eq( YugabyteYSQL::PGRES_PIPELINE_SYNC )
 				@conn.exit_pipeline_mode
 			end
 		end
@@ -2406,7 +2406,7 @@ describe PG::Connection do
 			end
 
 			it "raises appropriate error if set_client_encoding is called with invalid arguments" do
-				expect { @conn.set_client_encoding( "invalid" ) }.to raise_error(PG::Error, /invalid value/){|err| expect(err).to have_attributes(connection: @conn) }
+				expect { @conn.set_client_encoding( "invalid" ) }.to raise_error(YugabyteYSQL::Error, /invalid value/){|err| expect(err).to have_attributes(connection: @conn) }
 				expect { @conn.set_client_encoding( :invalid ) }.to raise_error(TypeError)
 				expect { @conn.set_client_encoding( nil ) }.to raise_error(TypeError)
 			end
@@ -2440,7 +2440,7 @@ describe PG::Connection do
 				@conn.prepare("weiß2", "VALUES(123)")
 				r = @conn.describe_prepared("weiß2".encode("utf-16be"))
 				expect( r.nfields ).to eq( 1 )
-				expect { @conn.prepare("weiß2", "VALUES(123)") }.to raise_error(PG::DuplicatePstatement)
+				expect { @conn.prepare("weiß2", "VALUES(123)") }.to raise_error(YugabyteYSQL::DuplicatePstatement)
 			end
 
 			it "should convert strings to #describe_portal" do
@@ -2582,7 +2582,7 @@ describe PG::Connection do
 					prev_encoding = Encoding.default_internal
 					Encoding.default_internal = Encoding::ISO8859_2
 
-					conn = PG.connect( @conninfo )
+					conn = YugabyteYSQL.connect( @conninfo )
 					expect( conn.internal_encoding ).to eq( Encoding::ISO8859_2 )
 					res = conn.exec( "SELECT foo FROM defaultinternaltest" )
 					expect( res[0]['foo'].encoding ).to eq( Encoding::ISO8859_2 )
@@ -2598,8 +2598,8 @@ describe PG::Connection do
 					prev_encoding = Encoding.default_internal
 					Encoding.default_internal = Encoding::UTF_8
 
-					# PG.connect shouldn't emit a "set client_encoding" for UTF_8, since the server is already on UTF8.
-					conn = PG.connect( @conninfo )
+					# YugabyteYSQL.connect shouldn't emit a "set client_encoding" for UTF_8, since the server is already on UTF8.
+					conn = YugabyteYSQL.connect( @conninfo )
 					expect( conn.internal_encoding ).to eq( Encoding::UTF_8 )
 					res = conn.exec( "SELECT setting, source FROM pg_settings WHERE name='client_encoding'" )
 					expect( res[0].values ).to eq( ['UTF8', 'default'] )
@@ -2627,7 +2627,7 @@ describe PG::Connection do
 
 		it "encodes exception messages with the connection's encoding (#96)", :without_transaction do
 			# Use a new connection so the client_encoding isn't set outside of this example
-			conn = PG.connect( @conninfo )
+			conn = YugabyteYSQL.connect( @conninfo )
 			conn.client_encoding = 'iso-8859-15'
 
 			conn.transaction do
@@ -2654,7 +2654,7 @@ describe PG::Connection do
 			end
 			@conn.exec "do $$ BEGIN RAISE NOTICE 'foo'; END; $$ LANGUAGE plpgsql;"
 			sleep 0.2
-			expect( r ).to be_a( PG::Result )
+			expect( r ).to be_a( YugabyteYSQL::Result )
 			expect( r.cleared? ).to eq(true)
 			expect( r.autoclear? ).to eq(true)
 			r.clear
@@ -2729,15 +2729,15 @@ describe PG::Connection do
 		end
 
 		it "should return nil if no type mapping is set" do
-			expect( @conn.type_map_for_queries ).to be_kind_of(PG::TypeMapAllStrings)
-			expect( @conn.type_map_for_results ).to be_kind_of(PG::TypeMapAllStrings)
+			expect( @conn.type_map_for_queries ).to be_kind_of(YugabyteYSQL::TypeMapAllStrings)
+			expect( @conn.type_map_for_results ).to be_kind_of(YugabyteYSQL::TypeMapAllStrings)
 		end
 
 		it "shouldn't type map params unless requested" do
 			if @conn.server_version < 100000
 				expect{
 					@conn.exec_params( "SELECT $1", [5] )
-				}.to raise_error(PG::IndeterminateDatatype){|err| expect(err).to have_attributes(connection: @conn) }
+				}.to raise_error(YugabyteYSQL::IndeterminateDatatype){|err| expect(err).to have_attributes(connection: @conn) }
 			else
 				# PostgreSQL-10 maps to TEXT type (OID 25)
 				expect( @conn.exec_params( "SELECT $1", [5] ).ftype(0)).to eq(25)
@@ -2751,8 +2751,8 @@ describe PG::Connection do
 		end
 
 		it "can type cast parameters to put_copy_data with explicit encoder" do
-			tm = PG::TypeMapByColumn.new [nil]
-			row_encoder = PG::TextEncoder::CopyRow.new type_map: tm
+			tm = YugabyteYSQL::TypeMapByColumn.new [nil]
+			row_encoder = YugabyteYSQL::TextEncoder::CopyRow.new type_map: tm
 
 			@conn.exec( "CREATE TEMP TABLE copytable (col1 TEXT)" )
 			@conn.copy_data( "COPY copytable FROM STDOUT" ) do |res|
@@ -2772,11 +2772,11 @@ describe PG::Connection do
 		context "with default query type map" do
 			before :each do
 				@conn2 = described_class.new(@conninfo)
-				tm = PG::TypeMapByClass.new
-				tm[Integer] = PG::TextEncoder::Integer.new oid: 20
+				tm = YugabyteYSQL::TypeMapByClass.new
+				tm[Integer] = YugabyteYSQL::TextEncoder::Integer.new oid: 20
 				@conn2.type_map_for_queries = tm
 
-				row_encoder = PG::TextEncoder::CopyRow.new type_map: tm
+				row_encoder = YugabyteYSQL::TextEncoder::CopyRow.new type_map: tm
 				@conn2.encoder_for_put_copy_data = row_encoder
 			end
 			after :each do
@@ -2790,7 +2790,7 @@ describe PG::Connection do
 			end
 
 			it "should return the current type mapping" do
-				expect( @conn2.type_map_for_queries ).to be_kind_of(PG::TypeMapByClass)
+				expect( @conn2.type_map_for_queries ).to be_kind_of(YugabyteYSQL::TypeMapByClass)
 			end
 
 			it "should work with arbitrary number of params in conjunction with type casting" do
@@ -2803,7 +2803,7 @@ describe PG::Connection do
 						expect( res.nfields ).to eq( num_params )
 						expect( res.values ).to eq( [num_params.times.map(&:to_s)] )
 					end
-				rescue PG::ProgramLimitExceeded
+				rescue YugabyteYSQL::ProgramLimitExceeded
 					# Stop silently as soon the server complains about too many params
 				end
 			end
@@ -2823,11 +2823,11 @@ describe PG::Connection do
 		context "with default result type map" do
 			before :each do
 				@conn2 = described_class.new(@conninfo)
-				tm = PG::TypeMapByOid.new
-				tm.add_coder PG::TextDecoder::Integer.new oid: 23, format: 0
+				tm = YugabyteYSQL::TypeMapByOid.new
+				tm.add_coder YugabyteYSQL::TextDecoder::Integer.new oid: 23, format: 0
 				@conn2.type_map_for_results = tm
 
-				row_decoder = PG::TextDecoder::CopyRow.new
+				row_decoder = YugabyteYSQL::TextDecoder::CopyRow.new
 				@conn2.decoder_for_get_copy_data = row_decoder
 			end
 			after :each do
@@ -2840,7 +2840,7 @@ describe PG::Connection do
 			end
 
 			it "should return the current type mapping" do
-				expect( @conn2.type_map_for_results ).to be_kind_of(PG::TypeMapByOid)
+				expect( @conn2.type_map_for_results ).to be_kind_of(YugabyteYSQL::TypeMapByOid)
 			end
 
 			it "should work with arbitrary number of params in conjunction with type casting" do
@@ -2853,7 +2853,7 @@ describe PG::Connection do
 						expect( res.nfields ).to eq( num_params )
 						expect( res.values ).to eq( [num_params.times.to_a] )
 					end
-				rescue PG::ProgramLimitExceeded
+				rescue YugabyteYSQL::ProgramLimitExceeded
 					# Stop silently as soon the server complains about too many params
 				end
 			end
@@ -2871,8 +2871,8 @@ describe PG::Connection do
 			end
 
 			it "can type cast #copy_data output with explicit decoder" do
-				tm = PG::TypeMapByColumn.new [PG::TextDecoder::Integer.new]
-				row_decoder = PG::TextDecoder::CopyRow.new type_map: tm
+				tm = YugabyteYSQL::TypeMapByColumn.new [YugabyteYSQL::TextDecoder::Integer.new]
+				row_decoder = YugabyteYSQL::TextDecoder::CopyRow.new type_map: tm
 				rows = []
 				@conn.copy_data( "COPY (SELECT 1 UNION ALL SELECT 2) TO STDOUT", row_decoder ) do |res|
 					while row=@conn.get_copy_data
@@ -2891,7 +2891,7 @@ describe PG::Connection do
 
 	describe :field_name_type do
 		before :each do
-			@conn2 = PG.connect(@conninfo)
+			@conn2 = YugabyteYSQL.connect(@conninfo)
 		end
 		after :each do
 			@conn2.close
@@ -2924,7 +2924,7 @@ describe PG::Connection do
 	end
 
 	describe "deprecated forms of methods" do
-		if PG::VERSION < "2"
+		if YugabyteYSQL::VERSION < "2"
 			it "should forward exec to exec_params" do
 				res = @conn.exec("VALUES($1::INT)", [7]).values
 				expect(res).to eq( [["7"]] )
@@ -2959,7 +2959,7 @@ describe PG::Connection do
 				expect( @conn.socket ).to eq( @conn.socket_io.fileno )
 			end
 		else
-			# Method forwarding removed by PG::VERSION >= "2"
+			# Method forwarding removed by YugabyteYSQL::VERSION >= "2"
 			it "shouldn't forward exec to exec_params" do
 				expect do
 					@conn.exec("VALUES($1::INT)", [7])

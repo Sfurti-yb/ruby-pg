@@ -1,9 +1,10 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-require 'pg' unless defined?( PG )
+require 'yugabyte_ysql' unless defined?( YugabyteYSQL )
 require 'io/wait' unless ::IO.public_instance_methods(false).include?(:wait_readable) # for ruby < 3.0
 require 'socket'
+require_relative 'load_balance_service'
 
 # The PostgreSQL connection class. The interface for this class is based on
 # {libpq}[http://www.postgresql.org/docs/current/libpq.html], the C
@@ -27,10 +28,10 @@ require 'socket'
 # 3. #sync_exec - the method version that is implemented by blocking function(s) of libpq.
 #
 # Sync and async version of the method can be switched by Connection.async_api= , however it is not recommended to change the default.
-class PG::Connection
+class YugabyteYSQL::Connection
 
 	# The order the options are passed to the ::connect method.
-	CONNECT_ARGUMENT_ORDER = %w[host port options tty dbname user password].freeze
+	CONNECT_ARGUMENT_ORDER = %w[host port options tty dbname user password load_balance topology_keys yb_servers_refresh_interval fallback_to_topology_keys_only failed_host_reconnect_delay_secs].freeze
 	private_constant :CONNECT_ARGUMENT_ORDER
 
 	### Quote a single +value+ for use in a connection-parameter string.
@@ -62,15 +63,26 @@ class PG::Connection
 	# The method adds the option "fallback_application_name" if it isn't already set.
 	# It returns a connection string with "key=value" pairs.
 	def self.parse_connect_args( *args )
+		conn_info, _ = parse_connect_args_and_return_lb_props(*args)
+		conn_info
+	end
+
+	def self.parse_connect_args_and_return_lb_props( *args )
 		hash_arg = args.last.is_a?( Hash ) ? args.pop.transform_keys(&:to_sym) : {}
 		iopts = {}
+		if not hash_arg.empty? and not hash_arg.key?(:port)
+			hash_arg[:port] = 5433
+		end
 
+		lb_props = {}
 		if args.length == 1
 			case args.first.to_s
 			when /=/, /:\/\//
 				# Option or URL string style
 				conn_string = args.first.to_s
-				iopts = PG::Connection.conninfo_parse(conn_string).each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }
+				# extract and parse lb properties from conn_string
+				conn_string, lb_props = YugabyteYSQL::LoadBalanceService.parse_lb_args_from_url conn_string
+				iopts = YugabyteYSQL::Connection.conninfo_parse(conn_string).each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }
 			else
 				# Positional parameters (only host given)
 				iopts[CONNECT_ARGUMENT_ORDER.first.to_sym] = args.first
@@ -87,13 +99,15 @@ class PG::Connection
 			iopts.delete(:tty) # ignore obsolete tty parameter
 		end
 
+		lb_props = YugabyteYSQL::LoadBalanceService.parse_connect_lb_args hash_arg unless hash_arg.empty?
+
 		iopts.merge!( hash_arg )
 
 		if !iopts[:fallback_application_name]
 			iopts[:fallback_application_name] = PROGRAM_NAME.sub( /^(.{30}).{4,}(.{30})$/ ){ $1+"..."+$2 }
 		end
 
-		return connect_hash_to_string(iopts)
+		return connect_hash_to_string(iopts), lb_props
 	end
 
 	# Return a String representation of the object suitable for debugging.
@@ -103,13 +117,13 @@ class PG::Connection
 			" finished"
 		else
 			stats = []
-			stats << " status=#{ PG.constants.grep(/CONNECTION_/).find{|c| PG.const_get(c) == status} }" if status != CONNECTION_OK
-			stats << " transaction_status=#{ PG.constants.grep(/PQTRANS_/).find{|c| PG.const_get(c) == transaction_status} }" if transaction_status != PG::PQTRANS_IDLE
+			stats << " status=#{ YugabyteYSQL.constants.grep(/CONNECTION_/).find{|c| YugabyteYSQL.const_get(c) == status} }" if status != CONNECTION_OK
+			stats << " transaction_status=#{ YugabyteYSQL.constants.grep(/PQTRANS_/).find{|c| YugabyteYSQL.const_get(c) == transaction_status} }" if transaction_status != YugabyteYSQL::PQTRANS_IDLE
 			stats << " nonblocking=#{ isnonblocking }" if isnonblocking
-			stats << " pipeline_status=#{ PG.constants.grep(/PQ_PIPELINE_/).find{|c| PG.const_get(c) == pipeline_status} }" if respond_to?(:pipeline_status) && pipeline_status != PG::PQ_PIPELINE_OFF
+			stats << " pipeline_status=#{ YugabyteYSQL.constants.grep(/PQ_PIPELINE_/).find{|c| YugabyteYSQL.const_get(c) == pipeline_status} }" if respond_to?(:pipeline_status) && pipeline_status != YugabyteYSQL::PQ_PIPELINE_OFF
 			stats << " client_encoding=#{ get_client_encoding }" if get_client_encoding != "UTF8"
-			stats << " type_map_for_results=#{ type_map_for_results.to_s }" unless type_map_for_results.is_a?(PG::TypeMapAllStrings)
-			stats << " type_map_for_queries=#{ type_map_for_queries.to_s }" unless type_map_for_queries.is_a?(PG::TypeMapAllStrings)
+			stats << " type_map_for_results=#{ type_map_for_results.to_s }" unless type_map_for_results.is_a?(YugabyteYSQL::TypeMapAllStrings)
+			stats << " type_map_for_queries=#{ type_map_for_queries.to_s }" unless type_map_for_queries.is_a?(YugabyteYSQL::TypeMapAllStrings)
 			stats << " encoder_for_put_copy_data=#{ encoder_for_put_copy_data.to_s }" if encoder_for_put_copy_data
 			stats << " decoder_for_get_copy_data=#{ decoder_for_get_copy_data.to_s }" if decoder_for_get_copy_data
 			" host=#{host} port=#{port} user=#{user}#{stats.join}"
@@ -212,7 +226,7 @@ class PG::Connection
 	#   ["more", "data", "to", "copy"]
 
 	def copy_data( sql, coder=nil )
-		raise PG::NotInBlockingMode.new("copy_data can not be used in nonblocking mode", connection: self) if nonblocking?
+		raise YugabyteYSQL::NotInBlockingMode.new("copy_data can not be used in nonblocking mode", connection: self) if nonblocking?
 		res = exec( sql )
 
 		case res.result_status
@@ -233,7 +247,7 @@ class PG::Connection
 				errmsg = "%s while copy data: %s" % [ err.class.name, err.message ]
 				begin
 					put_copy_end( errmsg )
-				rescue PG::Error
+				rescue YugabyteYSQL::Error
 					# Ignore error in cleanup to avoid losing original exception
 				end
 				discard_results
@@ -247,8 +261,8 @@ class PG::Connection
 					end
 
 					put_copy_end
-				rescue PG::Error => err
-					raise PG::LostCopyState.new("#{err} (probably by executing another SQL query while running a COPY command)", connection: self)
+				rescue YugabyteYSQL::Error => err
+					raise YugabyteYSQL::LostCopyState.new("#{err} (probably by executing another SQL query while running a COPY command)", connection: self)
 				end
 				get_last_result
 			ensure
@@ -272,16 +286,16 @@ class PG::Connection
 					# The file trailer is expected to be processed by BinaryDecoder::CopyRow and already returns nil, so that the remaining NULL from PQgetCopyData is retrieved here:
 					if get_copy_data
 						discard_results
-						raise PG::NotAllCopyDataRetrieved.new("Not all binary COPY data retrieved", connection: self)
+						raise YugabyteYSQL::NotAllCopyDataRetrieved.new("Not all binary COPY data retrieved", connection: self)
 					end
 				end
 				res = get_last_result
 				if !res
 					discard_results
-					raise PG::LostCopyState.new("Lost COPY state (probably by executing another SQL query while running a COPY command)", connection: self)
+					raise YugabyteYSQL::LostCopyState.new("Lost COPY state (probably by executing another SQL query while running a COPY command)", connection: self)
 				elsif res.result_status != PGRES_COMMAND_OK
 					discard_results
-					raise PG::NotAllCopyDataRetrieved.new("Not all COPY data retrieved", connection: self)
+					raise YugabyteYSQL::NotAllCopyDataRetrieved.new("Not all COPY data retrieved", connection: self)
 				end
 				res
 			ensure
@@ -295,7 +309,7 @@ class PG::Connection
 
 	# Backward-compatibility aliases for stuff that's moved into PG.
 	class << self
-		define_method( :isthreadsafe, &PG.method(:isthreadsafe) )
+		define_method( :isthreadsafe, &YugabyteYSQL.method(:isthreadsafe) )
 	end
 
 	#
@@ -316,7 +330,7 @@ class PG::Connection
 		exec "ROLLBACK"
 	rescue Exception
 		rollback = true
-		cancel if transaction_status == PG::PQTRANS_ACTIVE
+		cancel if transaction_status == YugabyteYSQL::PQTRANS_ACTIVE
 		block
 		exec "ROLLBACK"
 		raise
@@ -592,7 +606,7 @@ class PG::Connection
 		# Use connection options from PG::Connection.new to reconnect with the same options but with renewed DNS resolution.
 		# Use conninfo_hash as a fallback when connect_start was used to create the connection object.
 		iopts = @iopts_for_reset || conninfo_hash.compact
-		if iopts[:host] && !iopts[:host].empty? && PG.library_version >= 100000
+		if iopts[:host] && !iopts[:host].empty? && YugabyteYSQL.library_version >= 100000
 			iopts = self.class.send(:resolve_hosts, iopts)
 		end
 		conninfo = self.class.parse_connect_args( iopts );
@@ -893,7 +907,7 @@ class PG::Connection
 			iports = iopts[:port].split(",", -1)
 			iports = [nil] if iports.size == 0
 			iports = iports * ihosts.size if iports.size == 1
-			raise PG::ConnectionBad, "could not match #{iports.size} port numbers to #{ihosts.size} hosts" if iports.size != ihosts.size
+			raise YugabyteYSQL::ConnectionBad, "could not match #{iports.size} port numbers to #{ihosts.size} hosts" if iports.size != ihosts.size
 
 			dests = ihosts.each_with_index.flat_map do |mhost, idx|
 				unless host_is_named_pipe?(mhost)
@@ -920,11 +934,27 @@ class PG::Connection
 		end
 
 		private def connect_to_hosts(*args)
-			option_string = parse_connect_args(*args)
-			iopts = PG::Connection.conninfo_parse(option_string).each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }
-			iopts = PG::Connection.conndefaults.each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }.merge(iopts)
+			option_string, lb_properties = parse_connect_args_and_return_lb_props(*args)
+			iopts = YugabyteYSQL::Connection.conninfo_parse(option_string).each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }
+			iopts = YugabyteYSQL::Connection.conndefaults.each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }.merge(iopts)
+			original_host = iopts[:host]
+			original_port = iopts[:port]
 
-			if PG::BUNDLED_LIBPQ_WITH_UNIXSOCKET && iopts[:host].to_s.empty? && iopts[:hostaddr].to_s.empty?
+			if lb_properties
+				connection = YugabyteYSQL::LoadBalanceService.connect_to_lb_hosts(lb_properties, iopts)
+			end
+			if connection.nil?
+				if lb_properties
+					iopts[:host] = original_host
+					iopts[:port] = original_port
+				end
+				connection = do_connect_to_hosts(iopts)
+			end
+			connection
+		end
+
+		def do_connect_to_hosts(iopts)
+			if YugabyteYSQL::BUNDLED_LIBPQ_WITH_UNIXSOCKET && iopts[:host].to_s.empty? && iopts[:hostaddr].to_s.empty?
 				# Many distors patch the hardcoded default UnixSocket path in libpq to /var/run/postgresql instead of /tmp .
 				# We simply try them all.
 				iopts[:host] = "/var/run/postgresql" + # Ubuntu, Debian, Fedora, Opensuse
@@ -936,15 +966,15 @@ class PG::Connection
 			if iopts[:hostaddr]
 				# hostaddr is provided -> no need to resolve hostnames
 
-			elsif iopts[:host] && !iopts[:host].empty? && PG.library_version >= 100000
+			elsif iopts[:host] && !iopts[:host].empty? && YugabyteYSQL.library_version >= 100000
 				iopts = resolve_hosts(iopts)
 			else
 				# No host given
 			end
 			conn = self.connect_start(iopts) or
-										raise(PG::Error, "Unable to create a new connection")
+										raise(YugabyteYSQL::Error, "Unable to create a new connection")
 
-			raise PG::ConnectionBad, conn.error_message if conn.status == PG::CONNECTION_BAD
+			raise YugabyteYSQL::ConnectionBad, conn.error_message if conn.status == YugabyteYSQL::CONNECTION_BAD
 
 			# save the connection options for conn.reset
 			conn.instance_variable_set(:@iopts_for_reset, iopts_for_reset)
@@ -993,7 +1023,7 @@ class PG::Connection
 		end
 		alias async_ping ping
 
-		REDIRECT_CLASS_METHODS = PG.make_shareable({
+		REDIRECT_CLASS_METHODS = YugabyteYSQL.make_shareable({
 			:new => [:async_connect, :sync_connect],
 			:connect => [:async_connect, :sync_connect],
 			:open => [:async_connect, :sync_connect],
@@ -1012,8 +1042,8 @@ class PG::Connection
 			:flush => [:async_flush, :sync_flush],
 		}
 		private_constant :REDIRECT_SEND_METHODS
-		if PG::Connection.instance_methods.include? :sync_pipeline_sync
-			if PG::Connection.instance_methods.include? :send_pipeline_sync
+		if YugabyteYSQL::Connection.instance_methods.include? :sync_pipeline_sync
+			if YugabyteYSQL::Connection.instance_methods.include? :send_pipeline_sync
 				# PostgreSQL-17+
 				REDIRECT_SEND_METHODS.merge!({
 					:pipeline_sync => [:async_pipeline_sync, :sync_pipeline_sync],
@@ -1025,7 +1055,7 @@ class PG::Connection
 				})
 			end
 		end
-		PG.make_shareable(REDIRECT_SEND_METHODS)
+		YugabyteYSQL.make_shareable(REDIRECT_SEND_METHODS)
 
 		REDIRECT_METHODS = {
 			:exec => [:async_exec, :sync_exec],
@@ -1046,13 +1076,13 @@ class PG::Connection
 			:encrypt_password => [:async_encrypt_password, :sync_encrypt_password],
 		}
 		private_constant :REDIRECT_METHODS
-		if PG::Connection.instance_methods.include? :async_close_prepared
+		if YugabyteYSQL::Connection.instance_methods.include? :async_close_prepared
 			REDIRECT_METHODS.merge!({
 				:close_prepared => [:async_close_prepared, :sync_close_prepared],
 				:close_portal => [:async_close_portal, :sync_close_portal],
 			})
 		end
-		PG.make_shareable(REDIRECT_METHODS)
+		YugabyteYSQL.make_shareable(REDIRECT_METHODS)
 
 		def async_send_api=(enable)
 			REDIRECT_SEND_METHODS.each do |ali, (async, sync)|
