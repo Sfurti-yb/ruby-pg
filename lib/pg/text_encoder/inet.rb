@@ -3,7 +3,7 @@
 
 require 'ipaddr'
 
-module YugabyteYSQL
+module YSQL
 	module TextEncoder
 		# This is a encoder class for conversion of Ruby IPAddr values to PostgreSQL inet type.
 		#

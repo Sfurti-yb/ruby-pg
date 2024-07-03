@@ -3,7 +3,7 @@
 # frozen_string_literal: true
 
 # The top-level PG namespace.
-module YugabyteYSQL
+module YSQL
 
   # Is this file part of a fat binary gem with bundled libpq?
   # This path must be enabled by add_dll_directory on Windows.
