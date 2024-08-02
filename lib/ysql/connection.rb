@@ -307,6 +307,20 @@ class YugabyteYSQL::Connection
 		end
 	end
 
+	def close
+		h = host
+		h_addr = hostaddr
+		begin
+			finish()
+		ensure
+			if h
+				YSQL::LoadBalanceService.decrement_connection_count(h)
+			elsif h_addr
+				YSQL::LoadBalanceService.decrement_connection_count(h_addr)
+			end
+		end
+	end
+
 	# Backward-compatibility aliases for stuff that's moved into PG.
 	class << self
 		define_method( :isthreadsafe, &YugabyteYSQL.method(:isthreadsafe) )

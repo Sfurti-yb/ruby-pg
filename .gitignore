@@ -19,7 +19,6 @@
 /tmp_test_*/
 /vendor/
 /lib/libpq.dll
-/lib/pg/postgresql_lib_path.rb
-/test_trace.out
+/lib/ysql/postgresql_lib_path.rb
 /.idea/
 .irb_history
