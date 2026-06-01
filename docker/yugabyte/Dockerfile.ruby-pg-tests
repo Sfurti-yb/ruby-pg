@@ -1,0 +1,39 @@
+FROM ruby:3.3-bookworm
+
+ARG RUBY_PG_BRANCH=master
+
+# Install system dependencies:
+#   libpq-dev    – libpq headers for compiling the C extension; provides pg_config
+#   build-essential – C compiler / make
+#   git          – clone the repo
+#   socat        – TCP proxy: 127.0.0.1:5433 → yugabyte:5433 (for tests that hard-code localhost)
+#   python3      – used by run-tests.sh for inline scripting
+#   postgresql-client – provides psql for DB setup steps
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        build-essential \
+        git \
+        socat \
+        python3 \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the yugabyte/ruby-pg fork at the specified branch.
+RUN git clone --branch "${RUBY_PG_BRANCH}" --depth 1 \
+        https://github.com/yugabyte/ruby-pg.git /src
+
+WORKDIR /src
+
+# Install all gem dependencies (Gemfile + gemspec).
+RUN bundle install
+
+# Compile the C extension (ysql_ext) against the system libpq.
+# rake compile calls extconf.rb which uses pg_config to locate headers/libs.
+RUN bundle exec rake compile
+
+# Copy the test runner entrypoint.
+COPY docker/run-tests.sh /usr/local/bin/run-tests.sh
+RUN chmod +x /usr/local/bin/run-tests.sh
+
+ENTRYPOINT ["/usr/local/bin/run-tests.sh"]

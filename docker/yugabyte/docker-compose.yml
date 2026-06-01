@@ -1,0 +1,56 @@
+# Two-container setup: YugabyteDB (YSQL) + Ruby runner for ruby-pg tests.
+# From this directory:
+#   docker compose up --build --abort-on-container-exit ruby-pg-tests
+#
+# The test container waits for YSQL, creates the 'test' database and required
+# roles, then runs the rspec test suite against YugabyteDB.
+#
+# Published *host* ports default to high numbers to avoid clashing with local
+# Postgres (5432/5433), the C# Npgsql stack (45433/49000), and other services.
+# Override in docker/.env, e.g. YB_PUBLISH_YSQL=55433
+#
+# Runtime behaviour is controlled by environment variables:
+#   YB_ENABLE_YSQL_CONN_MGR   1 → enable YSQL connection manager (default: 0 / off)
+
+services:
+  yugabyte:
+    image: yugabytedb/yugabyte:2025.2.2.1-b1
+    # Official YB image is typically amd64; pin platform to avoid ambiguous emulation on arm64 hosts.
+    platform: "${YB_PLATFORM:-linux/amd64}"
+    hostname: yugabyte
+    command: ["/bin/bash", "/scripts/yugabyted-entrypoint.sh"]
+    environment:
+      - YB_ENABLE_YSQL_CONN_MGR
+    ports:
+      - "${YB_PUBLISH_YSQL:-55433}:5433"
+      - "${YB_PUBLISH_9000:-59000}:9000"
+      - "${YB_PUBLISH_UI:-55434}:15433"
+      - "${YB_PUBLISH_YCQL:-59042}:9042"
+    shm_size: "1gb"
+    volumes:
+      - ./yugabyted-entrypoint.sh:/scripts/yugabyted-entrypoint.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/home/yugabyte/bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -c 'SELECT 1' -q || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 90
+      start_period: 300s
+
+  ruby-pg-tests:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ruby-pg-tests
+      args:
+        RUBY_PG_BRANCH: "${RUBY_PG_BRANCH:-master}"
+    depends_on:
+      yugabyte:
+        condition: service_healthy
+    environment:
+      YUGABYTE_HOST: yugabyte
+      YUGABYTE_PORT: "5433"
+      YB_ENABLE_YSQL_CONN_MGR: "${YB_ENABLE_YSQL_CONN_MGR:-0}"
+    working_dir: /src
