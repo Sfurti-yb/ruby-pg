@@ -3,7 +3,7 @@
 
 require 'json'
 
-module YSQL
+module YugabyteYSQL
 	module TextDecoder
 		# This is a decoder class for conversion of PostgreSQL JSON/JSONB type to Ruby Hash, Array, String, Numeric, nil values.
 		#

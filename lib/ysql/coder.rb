@@ -1,7 +1,7 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-module YSQL
+module YugabyteYSQL
 
 	class Coder
 

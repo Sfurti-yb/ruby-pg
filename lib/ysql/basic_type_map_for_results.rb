@@ -1,7 +1,7 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-require 'ysql' unless defined?( YSQL )
+require 'yugabyte_ysql' unless defined?( YugabyteYSQL )
 
 # Simple set of rules for type casting common PostgreSQL types to Ruby.
 #
@@ -67,10 +67,10 @@ require 'ysql' unless defined?( YSQL )
 #   ["a", 123, 2023-03-19 18:39:44 UTC]
 #
 # See also PG::BasicTypeMapBasedOnResult for the encoder direction and PG::BasicTypeRegistry for the definition of additional types.
-class YSQL::BasicTypeMapForResults < YSQL::TypeMapByOid
-	include YSQL::BasicTypeRegistry::Checker
+class YugabyteYSQL::BasicTypeMapForResults < YugabyteYSQL::TypeMapByOid
+	include YugabyteYSQL::BasicTypeRegistry::Checker
 
-	class WarningTypeMap < YSQL::TypeMapInRuby
+	class WarningTypeMap < YugabyteYSQL::TypeMapInRuby
 		def initialize(typenames)
 			@already_warned = {}
 			@typenames_by_oid = typenames

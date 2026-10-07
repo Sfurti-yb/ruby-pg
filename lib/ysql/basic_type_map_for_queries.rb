@@ -1,7 +1,7 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-require 'ysql' unless defined?( YSQL )
+require 'yugabyte_ysql' unless defined?( YugabyteYSQL )
 
 # Simple set of rules for type casting common Ruby types to PostgreSQL.
 #
@@ -21,7 +21,7 @@ require 'ysql' unless defined?( YSQL )
 #   # Execute a query. The Integer param value is typecasted internally by PG::BinaryEncoder::Int8.
 #   # The format of the parameter is set to 0 (text) and the OID of this parameter is set to 20 (int8).
 #   res = conn.exec_params( "SELECT $1", [5] )
-class YSQL::BasicTypeMapForQueries < YSQL::TypeMapByClass
+class YugabyteYSQL::BasicTypeMapForQueries < YugabyteYSQL::TypeMapByClass
 	# Helper class for submission of binary strings into bytea columns.
 	#
 	# Since PG::BasicTypeMapForQueries chooses the encoder to be used by the class of the submitted value,
@@ -40,7 +40,7 @@ class YSQL::BasicTypeMapForQueries < YSQL::TypeMapByClass
 	class UndefinedEncoder < RuntimeError
 	end
 
-	include YSQL::BasicTypeRegistry::Checker
+	include YugabyteYSQL::BasicTypeRegistry::Checker
 
 	# Create a new type map for query submission
 	#
@@ -136,9 +136,9 @@ class YSQL::BasicTypeMapForQueries < YSQL::TypeMapByClass
 					when :array
 						self[klass] = selector
 					when :json
-						self[klass] = YSQL::TextEncoder::JSON.new
+						self[klass] = YugabyteYSQL::TextEncoder::JSON.new
 					when :record
-						self[klass] = YSQL::TextEncoder::Record.new type_map: self
+						self[klass] = YugabyteYSQL::TextEncoder::Record.new type_map: self
 					when /\A_/
 						coder = coder_by_name(0, :encoder, @encode_array_as)
 						if coder

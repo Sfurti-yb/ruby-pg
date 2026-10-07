@@ -1,9 +1,9 @@
 # frozen_string_literal: true
-require 'ysql' unless defined?( YSQL )
+require 'yugabyte_ysql' unless defined?( YugabyteYSQL )
 require 'concurrent'
 require 'logger'
 
-class YSQL::LoadBalanceService
+class YugabyteYSQL::LoadBalanceService
 
   class << self
     attr_accessor :logger
@@ -114,7 +114,7 @@ class YSQL::LoadBalanceService
       end
       unless host_port
         if (lb_props.lb_value == "only-primary" || lb_props.lb_value == "only-rr" )
-          raise(YSQL::Error, "No node found for load_balance=#{lb_props.lb_value}")
+          raise(YugabyteYSQL::Error, "No node found for load_balance=#{lb_props.lb_value}")
         elsif strict_preference && (lb_props.lb_value == "prefer-primary" || lb_props.lb_value == "prefer-rr")
           @@mutex.acquire_write_lock
           begin
@@ -189,7 +189,7 @@ class YSQL::LoadBalanceService
           iopts[:port] = new_list[h].port
           iopts[:host] = h
         else
-          raise(YSQL::Error, "Unable to create a control connection")
+          raise(YugabyteYSQL::Error, "Unable to create a control connection")
         end
       end
     end
@@ -462,7 +462,7 @@ end
   end
 
   def self.resolve_host(mhost)
-    if YSQL::Connection.host_is_named_pipe?(mhost)
+    if YugabyteYSQL::Connection.host_is_named_pipe?(mhost)
       # No hostname to resolve (UnixSocket)
       hostaddrs = [nil]
     else

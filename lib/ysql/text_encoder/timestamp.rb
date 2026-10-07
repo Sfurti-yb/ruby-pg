@@ -1,7 +1,7 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-module YSQL
+module YugabyteYSQL
 	module TextEncoder
 		class TimestampWithoutTimeZone < SimpleEncoder
 			def encode(value)

@@ -1,7 +1,7 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-module YSQL
+module YugabyteYSQL
 	module TextEncoder
 		# This is a encoder class for conversion of Ruby Date values to PostgreSQL date type.
 		class Date < SimpleEncoder

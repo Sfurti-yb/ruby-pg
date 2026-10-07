@@ -81,7 +81,7 @@ class YugabyteYSQL::Connection
 				# Option or URL string style
 				conn_string = args.first.to_s
 				# extract and parse lb properties from conn_string
-				conn_string, lb_props = YugabyteYSQL::LoadBalanceService.parse_lb_args_from_url conn_string
+				conn_string, lb_props = YugabyteYugabyteYSQL::LoadBalanceService.parse_lb_args_from_url conn_string
 				iopts = YugabyteYSQL::Connection.conninfo_parse(conn_string).each_with_object({}){|h, o| o[h[:keyword].to_sym] = h[:val] if h[:val] }
 			else
 				# Positional parameters (only host given)
@@ -99,7 +99,7 @@ class YugabyteYSQL::Connection
 			iopts.delete(:tty) # ignore obsolete tty parameter
 		end
 
-		lb_props = YugabyteYSQL::LoadBalanceService.parse_connect_lb_args hash_arg unless hash_arg.empty?
+		lb_props = YugabyteYugabyteYSQL::LoadBalanceService.parse_connect_lb_args hash_arg unless hash_arg.empty?
 
 		iopts.merge!( hash_arg )
 
@@ -314,9 +314,9 @@ class YugabyteYSQL::Connection
 			finish()
 		ensure
 			if h
-				YSQL::LoadBalanceService.decrement_connection_count(h)
+				YugabyteYSQL::LoadBalanceService.decrement_connection_count(h)
 			elsif h_addr
-				YSQL::LoadBalanceService.decrement_connection_count(h_addr)
+				YugabyteYSQL::LoadBalanceService.decrement_connection_count(h_addr)
 			end
 		end
 	end
@@ -955,7 +955,7 @@ class YugabyteYSQL::Connection
 			original_port = iopts[:port]
 
 			if lb_properties
-				connection = YugabyteYSQL::LoadBalanceService.connect_to_lb_hosts(lb_properties, iopts)
+				connection = YugabyteYugabyteYSQL::LoadBalanceService.connect_to_lb_hosts(lb_properties, iopts)
 			end
 			if connection.nil?
 				if lb_properties

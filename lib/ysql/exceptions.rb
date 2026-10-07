@@ -1,10 +1,10 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
-require 'ysql' unless defined?( YSQL )
+require 'yugabyte_ysql' unless defined?( YugabyteYSQL )
 
 
-module YSQL
+module YugabyteYSQL
 
 	class Error < StandardError
 		def initialize(msg=nil, connection: nil, result: nil)
@@ -14,11 +14,11 @@ module YSQL
 		end
 	end
 
-	class NotAllCopyDataRetrieved < YSQL::Error
+	class NotAllCopyDataRetrieved < YugabyteYSQL::Error
 	end
-	class LostCopyState < YSQL::Error
+	class LostCopyState < YugabyteYSQL::Error
 	end
-	class NotInBlockingMode < YSQL::Error
+	class NotInBlockingMode < YugabyteYSQL::Error
 	end
 
 	# PG::Connection#transaction uses this exception to distinguish a deliberate rollback from other exceptional situations.
