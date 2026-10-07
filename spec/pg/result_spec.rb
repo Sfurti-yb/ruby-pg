@@ -3,8 +3,6 @@
 
 require_relative '../helpers'
 
-require 'pg'
-
 
 describe YugabyteYSQL::Result do
 

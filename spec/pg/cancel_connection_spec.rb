@@ -2,7 +2,6 @@
 # encoding: utf-8
 
 require_relative '../helpers'
-require 'pg'
 
 if PG.library_version < 170000
 

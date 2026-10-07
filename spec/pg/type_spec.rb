@@ -1,7 +1,7 @@
 # -*- rspec -*-
 # encoding: utf-8
 
-require 'pg'
+require_relative '../helpers'
 require 'time'
 unless defined?(ObjectSpace.memsize_of)
 	require "objspace"

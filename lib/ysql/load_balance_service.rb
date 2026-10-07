@@ -144,7 +144,7 @@ class YugabyteYSQL::LoadBalanceService
         iopts[:host] = lb_host
         iopts[:port] = lb_port
         # iopts = resolve_hosts(iopts)
-        connection = YSQL.connect(iopts)
+        connection = YugabyteYSQL.connect(iopts)
         success = true
       rescue => e
         @@mutex.acquire_write_lock
@@ -172,7 +172,7 @@ class YugabyteYSQL::LoadBalanceService
     # Iterate until control connection is successful or all nodes are tried
     until success
       begin
-        conn = YSQL.connect(iopts)
+        conn = YugabyteYSQL.connect(iopts)
         success = true
       rescue => e
         if @@cluster_info[iopts[:host]]

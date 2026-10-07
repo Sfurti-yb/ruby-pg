@@ -171,12 +171,12 @@ class YugabyteYSQL::BasicTypeMapForQueries < YugabyteYSQL::TypeMapByClass
 	end
 
 	begin
-		PG.require_bigdecimal_without_warning
+		YugabyteYSQL.require_bigdecimal_without_warning
 		has_bigdecimal = true
 	rescue LoadError
 	end
 
-	DEFAULT_TYPE_MAP = YSQL.make_shareable({
+	DEFAULT_TYPE_MAP = YugabyteYSQL.make_shareable({
 		TrueClass => [1, 'bool', 'bool'],
 		FalseClass => [1, 'bool', 'bool'],
 		# We use text format and no type OID for numbers, because setting the OID can lead
@@ -193,7 +193,7 @@ class YugabyteYSQL::BasicTypeMapForQueries < YugabyteYSQL::TypeMapByClass
 	}.merge(has_bigdecimal ? {BigDecimal => [0, 'numeric']} : {}))
 	private_constant :DEFAULT_TYPE_MAP
 
-	DEFAULT_ARRAY_TYPE_MAP = YSQL.make_shareable({
+	DEFAULT_ARRAY_TYPE_MAP = YugabyteYSQL.make_shareable({
 		TrueClass => [0, '_bool'],
 		FalseClass => [0, '_bool'],
 		Integer => [0, '_int8'],

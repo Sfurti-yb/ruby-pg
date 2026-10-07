@@ -278,7 +278,7 @@ class YugabyteYSQL::BasicTypeRegistry
 		register_type 0, 'inet', YugabyteYSQL::TextEncoder::Inet, YugabyteYSQL::TextDecoder::Inet
 		alias_type 0, 'cidr', 'inet'
 
-		register_type 0, 'record', PG::TextEncoder::Record, PG::TextDecoder::Record
+		register_type 0, 'record', YugabyteYSQL::TextEncoder::Record, YugabyteYSQL::TextDecoder::Record
 
 
 		register_type 1, 'int2', YugabyteYSQL::BinaryEncoder::Int2, YugabyteYSQL::BinaryDecoder::Integer
