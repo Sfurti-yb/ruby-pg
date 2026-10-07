@@ -32,8 +32,6 @@ CLEAN.include "lib/*/libpq.dll"
 CLEAN.include "lib/ysql_ext.*"
 CLEAN.include "lib/ysql/postgresql_lib_path.rb"
 
-load 'Rakefile.cross'
-
 Bundler::GemHelper.install_tasks
 $gem_spec = Bundler.load_gemspec(GEMSPEC)
 
@@ -49,25 +47,6 @@ Rake::ExtensionTask.new do |ext|
 	ext.ext_dir        = 'ext'
 	ext.lib_dir        = 'lib'
 	ext.source_pattern = "*.{c,h}"
-	ext.cross_compile  = true
-	ext.cross_platform = CrossLibraries.map(&:for_platform)
-
-	ext.cross_config_options += CrossLibraries.map do |lib|
-		{
-			lib.for_platform => [
-				"--enable-windows-cross",
-				"--with-pg-include=#{lib.static_postgresql_incdir}",
-				"--with-pg-lib=#{lib.static_postgresql_libdir}",
-				# libpq-fe.h resides in src/interfaces/libpq/ before make install
-				"--with-opt-include=#{lib.static_postgresql_libdir}",
-			]
-		}
-	end
-
-	# Add libpq.dll to windows binary gemspec
-	ext.cross_compiling do |spec|
-		spec.files << "lib/#{spec.platform}/libpq.dll"
-	end
 end
 
 RSpec::Core::RakeTask.new(:spec).rspec_opts = "--profile -cfdoc"
@@ -89,7 +68,7 @@ task :gem => :build
 task :clobber do
 	puts "Stop any Postmaster instances that remain after testing."
 	require_relative 'spec/helpers'
-	YSQL::TestingHelpers.stop_existing_postmasters()
+	YugabyteYSQL::TestingHelpers.stop_existing_postmasters()
 end
 
 desc "Update list of server error codes"
